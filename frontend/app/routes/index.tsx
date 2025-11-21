@@ -33,11 +33,6 @@ export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: Home,
-  beforeLoad: () => {
-      if (typeof window !== 'undefined' && !auth.isAuthenticated()) {
-          throw redirect({ to: '/login' })
-      }
-  }
 })
 
 function Home() {
@@ -48,7 +43,14 @@ function Home() {
   // Fetch User Profile for Permissions
   const { data: user } = useQuery({
       queryKey: ['me'],
-      queryFn: async () => await api.get('users/me').json<UserProfile>()
+      queryFn: async () => {
+          try {
+              return await api.get('users/me').json<UserProfile>()
+          } catch {
+              return null
+          }
+      },
+      retry: false
   })
 
   const { data: cards, isLoading } = useQuery({
@@ -67,8 +69,9 @@ function Home() {
           // low_ask: c.lowest_ask ?? (c.latest_price ?? 0) * 1.1, // Removed mock low_ask
           // Only show delta if price exists
           price_delta_24h: c.price_delta_24h ?? 0,
-          volume_usd_24h: (c.volume_24h ?? 0) * (c.latest_price ?? 0) // Calculate dollar volume
-      }))
+          volume_usd_24h: (c.volume_24h ?? 0) * (c.latest_price ?? 0), // Calculate dollar volume
+          highest_bid: (c as any).highest_bid ?? 0
+      })).filter(c => (c.latest_price && c.latest_price > 0) || (c.volume_24h && c.volume_24h > 0)) // Filter out 0 listings
     }
   })
 
@@ -160,6 +163,11 @@ function Home() {
         cell: ({ row }) => <div className="text-right font-mono text-xs text-muted-foreground">${row.original.lowest_ask?.toFixed(2)}</div>
     },
     {
+        accessorKey: 'highest_bid',
+        header: () => <div className="text-right uppercase tracking-wider text-xs text-muted-foreground">High Bid</div>,
+        cell: ({ row }) => <div className="text-right font-mono text-xs text-muted-foreground">${(row.original as any).highest_bid?.toFixed(2) || '---'}</div>
+    },
+    {
         accessorKey: 'inventory',
         header: () => <div className="text-right uppercase tracking-wider text-xs text-muted-foreground">Inv</div>,
         cell: ({ row }) => <div className="text-right font-mono text-xs text-muted-foreground">{row.original.inventory}</div>
@@ -221,9 +229,18 @@ function Home() {
                 <span className="w-2 h-2 rounded-full bg-green-500 inline-block mr-2"></span>
                 System Online
             </div>
-            <div className="h-4 w-px bg-border"></div>
-            <div className="text-xs font-bold uppercase">{user?.email}</div>
-            <button onClick={() => auth.logout()} className="text-xs uppercase hover:text-primary transition-colors text-muted-foreground">Logout</button>
+            {user ? (
+                <>
+                    <div className="h-4 w-px bg-border"></div>
+                    <div className="text-xs font-bold uppercase">{user.email}</div>
+                    <button onClick={() => auth.logout()} className="text-xs uppercase hover:text-primary transition-colors text-muted-foreground">Logout</button>
+                </>
+            ) : (
+                <>
+                    <div className="h-4 w-px bg-border"></div>
+                    <Link to="/login" className="text-xs uppercase hover:text-primary transition-colors text-muted-foreground font-bold">Login</Link>
+                </>
+            )}
         </div>
       </div>
 

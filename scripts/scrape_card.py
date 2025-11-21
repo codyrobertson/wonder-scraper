@@ -1,25 +1,29 @@
 import asyncio
 import sys
+from typing import Optional
 from sqlmodel import Session, select
 from app.db import engine
 from app.models.card import Card, Rarity
 from app.models.market import MarketSnapshot, MarketPrice
 from app.scraper.browser import get_page_content
 from app.scraper.utils import build_ebay_url
-from app.scraper.ebay import parse_search_results
+from app.scraper.ebay import parse_search_results, parse_total_results
 from app.services.math import calculate_stats
 from app.scraper.browser import BrowserManager
 from app.scraper.active import scrape_active_data
 
-async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = ""):
-    print(f"--- Scraping: {card_name} (Rarity: {rarity_name}) ---")
+async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", search_term: Optional[str] = None):
+    # If no search_term provided, default to card_name
+    query = search_term if search_term else card_name
+    print(f"--- Scraping: {card_name} (Query: {query}) (Rarity: {rarity_name}) ---")
     
     # 1. Active Data
     print("Fetching active listings...")
-    active_ask, active_inv = await scrape_active_data(card_name, card_id)
+    # Pass strict card_name for validation, but query for searching
+    active_ask, active_inv, highest_bid = await scrape_active_data(card_name, card_id, search_term=query)
     
     # 2. Build URL for SOLD listings
-    url = build_ebay_url(card_name, sold_only=True)
+    url = build_ebay_url(query, sold_only=True)
     print(f"Sold URL: {url}")
     
     # 2. Fetch HTML
@@ -30,23 +34,35 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = ""):
         return
 
     # 3. Parse
+    # Clean name for validation only
     clean_name = card_name.replace("Wonders of the First", "").strip()
+    
+    # Pass pure clean_name for validation
     prices = parse_search_results(html, card_id=card_id, card_name=clean_name, target_rarity=rarity_name)
     print(f"Found {len(prices)} sold listings.")
     
-    if not prices:
-        print("No data found. Exiting.")
-        return
-
     # 4. Calculate Stats
-    price_values = [p.price for p in prices]
-    stats = calculate_stats(price_values)
-    print(f"Stats: {stats}")
+    # Parse total volume from the page header if possible for accuracy
+    total_volume = parse_total_results(html)
+    # If parse_total_results returns 0 or fails, fallback to list length
+    if total_volume == 0 and prices:
+        total_volume = len(prices)
+    
+    if not prices:
+        print("No sold data found.")
+        stats = {"min": 0.0, "max": 0.0, "avg": 0.0, "volume": 0}
+    else:
+        price_values = [p.price for p in prices]
+        stats = calculate_stats(price_values)
+        # Override volume with the parsed total from header
+        stats["volume"] = total_volume
+        print(f"Stats: {stats} (Total Vol from Header: {total_volume})")
     
     # 5. Save to DB
     if card_id > 0:
         with Session(engine) as session:
-            session.add_all(prices)
+            if prices:
+                session.add_all(prices)
             
             snapshot = MarketSnapshot(
                 card_id=card_id,
@@ -55,7 +71,7 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = ""):
                 avg_price=stats["avg"],
                 volume=stats["volume"],
                 lowest_ask=active_ask,
-                highest_bid=0.0,
+                highest_bid=highest_bid,
                 inventory=active_inv
             )
             session.add(snapshot)
@@ -75,13 +91,15 @@ async def main():
             card_name = "Aerius of Thalwind"
             card_id = 0
             rarity_name = ""
+            search_term = "Aerius of Thalwind"
         else:
-            card_name = f"{card.name} {card.set_name}"
+            card_name = card.name
+            search_term = f"{card.name} {card.set_name}"
             card_id = card.id
             rarity = session.get(Rarity, card.rarity_id)
             rarity_name = rarity.name if rarity else ""
             
-    await scrape_card(card_name, card_id, rarity_name)
+    await scrape_card(card_name, card_id, rarity_name, search_term=search_term)
     
     # Close browser
     await BrowserManager.close()

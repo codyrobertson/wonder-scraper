@@ -16,7 +16,6 @@ def read_cards(
     skip: int = 0,
     limit: int = 100,
     search: Optional[str] = None,
-    current_user = Depends(deps.get_current_user)
 ) -> Any:
     """
     Retrieve cards with latest market data.
@@ -27,6 +26,10 @@ def read_cards(
     
     query = query.offset(skip).limit(limit)
     cards = session.exec(query).all()
+    
+    # Pre-fetch rarities to avoid N+1
+    rarities = session.exec(select(Rarity)).all()
+    rarity_map = {r.id: r.name for r in rarities}
     
     results = []
     for card in cards:
@@ -46,6 +49,7 @@ def read_cards(
             name=card.name,
             set_name=card.set_name,
             rarity_id=card.rarity_id,
+            rarity_name=rarity_map.get(card.rarity_id, "Unknown"),
             latest_price=latest_snap.avg_price if latest_snap else None,
             volume_24h=latest_snap.volume if latest_snap else 0,
             price_delta_24h=delta if latest_snap else None,
@@ -60,18 +64,33 @@ def read_cards(
 def read_card(
     card_id: int,
     session: Session = Depends(get_session),
-    current_user = Depends(deps.get_current_user)
 ) -> Any:
     card = session.get(Card, card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
-    return card
+    
+    # Fetch rarity name
+    rarity_name = "Unknown"
+    if card.rarity_id:
+        rarity = session.get(Rarity, card.rarity_id)
+        if rarity:
+            rarity_name = rarity.name
+            
+    c_out = CardOut(
+        id=card.id,
+        name=card.name,
+        set_name=card.set_name,
+        rarity_id=card.rarity_id,
+        rarity_name=rarity_name,
+        # Flattened fields not strictly needed here if just reading card details but good for consistency
+    )
+    
+    return c_out
 
 @router.get("/{card_id}/market", response_model=Optional[MarketSnapshotOut])
 def read_market_data(
     card_id: int,
     session: Session = Depends(get_session),
-    current_user = Depends(deps.get_current_user)
 ) -> Any:
     """
     Get latest market snapshot for a card.
@@ -89,7 +108,6 @@ def read_sales_history(
     card_id: int,
     session: Session = Depends(get_session),
     limit: int = 50,
-    current_user = Depends(deps.get_current_user)
 ) -> Any:
     """
     Get sales history (individual sold listings).

@@ -28,4 +28,5 @@ class MarketPrice(SQLModel, table=True):
     sold_date: Optional[datetime] = None
     listing_type: str = Field(default="sold") # 'sold' or 'active'
     treatment: str = Field(default="Classic Paper") # New field: Classic Paper, Foil, Serialized, etc.
+    bid_count: int = Field(default=0) # New field: Number of bids (for auctions)
     scraped_at: datetime = Field(default_factory=datetime.utcnow)

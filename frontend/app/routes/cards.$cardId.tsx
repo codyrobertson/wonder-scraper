@@ -2,7 +2,7 @@ import { createRoute, useParams } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../utils/auth'
 import { Route as rootRoute } from './__root'
-import { ArrowLeft, TrendingUp, Wallet, Filter, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, TrendingUp, Wallet, Filter, ChevronLeft, ChevronRight, X, ExternalLink } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getPaginationRowModel, getFilteredRowModel } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
@@ -14,6 +14,7 @@ type CardDetail = {
   name: string
   set_name: string
   rarity_id: number
+  rarity_name?: string
   latest_price?: number
   volume_24h?: number
   price_delta_24h?: number
@@ -30,6 +31,7 @@ type MarketPrice = {
     sold_date: string
     listing_type: string
     treatment?: string
+    bid_count?: number
 }
 
 export const Route = createRoute({
@@ -42,6 +44,7 @@ function CardDetail() {
   const { cardId } = useParams({ from: Route.id })
   const queryClient = useQueryClient()
   const [treatmentFilter, setTreatmentFilter] = useState<string>('all')
+  const [selectedListing, setSelectedListing] = useState<MarketPrice | null>(null)
   
   // Fetch Card Data
   const { data: card, isLoading: isLoadingCard } = useQuery({
@@ -236,7 +239,7 @@ function CardDetail() {
                                     ID: {card.id.toString().padStart(4, '0')}
                                 </span>
                                 <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border border-zinc-700">
-                                    Rarity: {card.rarity_id}
+                                    Rarity: {card.rarity_name || card.rarity_id}
                                 </span>
                             </div>
                             <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-2">{card.name}</h1>
@@ -391,7 +394,11 @@ function CardDetail() {
                                             <tr><td colSpan={5} className="p-12 text-center text-muted-foreground animate-pulse">Fetching ledger data...</td></tr>
                                         ) : table.getRowModel().rows?.length ? (
                                             table.getRowModel().rows.map(row => (
-                                                <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+                                                <tr 
+                                                    key={row.id} 
+                                                    className="hover:bg-muted/30 transition-colors cursor-pointer group"
+                                                    onClick={() => setSelectedListing(row.original)}
+                                                >
                                                     {row.getVisibleCells().map(cell => (
                                                         <td key={cell.id} className="px-6 py-3 whitespace-nowrap">
                                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -497,6 +504,118 @@ function CardDetail() {
                 </div>
             </div>
         </footer>
+
+        {/* Listing Details Drawer */}
+        <div 
+            className={clsx(
+                "fixed inset-y-0 right-0 w-full md:w-96 bg-card border-l border-border shadow-2xl transform transition-transform duration-300 ease-in-out z-50 flex flex-col",
+                selectedListing ? "translate-x-0" : "translate-x-full"
+            )}
+        >
+            {selectedListing && (
+                <>
+                    <div className="p-6 border-b border-border flex justify-between items-start">
+                        <div>
+                            <h2 className="text-lg font-bold uppercase tracking-tight">Listing Details</h2>
+                            <div className="text-xs text-muted-foreground uppercase">ID: {selectedListing.id}</div>
+                        </div>
+                        <button onClick={() => setSelectedListing(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        <div>
+                            <div className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest mb-2">Listing Title</div>
+                            <div className="text-sm font-medium leading-relaxed border border-border p-3 rounded bg-muted/20">
+                                {selectedListing.title}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <div className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest mb-1">Price</div>
+                                <div className="text-2xl font-mono font-bold text-emerald-500">
+                                    ${selectedListing.price.toFixed(2)}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest mb-1">Date</div>
+                                <div className="text-sm font-mono">
+                                    {selectedListing.sold_date ? new Date(selectedListing.sold_date).toLocaleDateString() : 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <div className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest mb-1">Type</div>
+                                <span className={clsx("px-2 py-1 rounded text-[10px] uppercase font-bold border inline-block", 
+                                    selectedListing.listing_type === 'sold' ? "border-green-800 bg-green-900/20 text-green-500" : "border-blue-800 bg-blue-900/20 text-blue-500")}>
+                                    {selectedListing.listing_type || 'Sold'}
+                                </span>
+                            </div>
+                            <div>
+                                <div className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest mb-1">Treatment</div>
+                                <span className={clsx("px-2 py-1 rounded text-[10px] uppercase font-bold border inline-block", 
+                                    selectedListing.treatment?.includes("Foil") ? "border-purple-800 bg-purple-900/20 text-purple-500" : 
+                                    selectedListing.treatment?.includes("Serialized") ? "border-amber-800 bg-amber-900/20 text-amber-500" :
+                                    "border-zinc-800 bg-zinc-900/20 text-zinc-500"
+                                )}>
+                                    {selectedListing.treatment || 'Classic Paper'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div>
+                             <div className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest mb-1">Bid Count</div>
+                             <div className="text-sm font-mono font-bold">
+                                {selectedListing.bid_count !== undefined ? selectedListing.bid_count : '0'}
+                             </div>
+                        </div>
+
+                        {/* Card Metadata Context */}
+                        <div className="pt-6 border-t border-border">
+                            <h3 className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <Wallet className="w-3 h-3" /> Linked Card Info
+                            </h3>
+                            <div className="bg-muted/10 rounded p-4 border border-border space-y-3">
+                                <div className="flex justify-between">
+                                    <span className="text-xs text-muted-foreground uppercase">Name</span>
+                                    <span className="text-xs font-bold">{card?.name}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-xs text-muted-foreground uppercase">Set</span>
+                                    <span className="text-xs font-bold">{card?.set_name}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-xs text-muted-foreground uppercase">Rarity</span>
+                                    <span className="text-xs font-bold">{card?.rarity_name || card?.rarity_id}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Placeholder for future URL */}
+                        <div className="pt-2">
+                            <a href={`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(selectedListing.title)}&LH_Complete=1`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full border border-border hover:bg-muted/50 text-xs uppercase font-bold py-3 rounded transition-colors">
+                                <ExternalLink className="w-3 h-3" /> Find Original on eBay
+                            </a>
+                            <div className="text-[10px] text-center text-muted-foreground mt-2">
+                                *Link searches for this title as specific URLs are not yet archived.
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+        
+        {/* Backdrop */}
+        {selectedListing && (
+            <div 
+                className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+                onClick={() => setSelectedListing(null)}
+            />
+        )}
     </div>
   )
 }
