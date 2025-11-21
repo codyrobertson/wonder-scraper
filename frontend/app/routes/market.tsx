@@ -123,7 +123,7 @@ function MarketAnalysis() {
                         {topGainers.map(c => (
                             <div key={c.id} className="px-6 py-3 flex justify-between items-center hover:bg-muted/30 transition-colors">
                                 <div>
-                                    <Link to={`/cards/${c.id}`} className="font-bold hover:text-primary text-sm">{c.name}</Link>
+                                    <Link to={`/cards/${c.id}` as any} className="font-bold hover:text-primary text-sm">{c.name}</Link>
                                     <div className="text-[10px] text-muted-foreground uppercase">{c.set_name}</div>
                                 </div>
                                 <div className="text-right">
@@ -147,7 +147,7 @@ function MarketAnalysis() {
                         {topLosers.map(c => (
                             <div key={c.id} className="px-6 py-3 flex justify-between items-center hover:bg-muted/30 transition-colors">
                                 <div>
-                                    <Link to={`/cards/${c.id}`} className="font-bold hover:text-primary text-sm">{c.name}</Link>
+                                    <Link to={`/cards/${c.id}` as any} className="font-bold hover:text-primary text-sm">{c.name}</Link>
                                     <div className="text-[10px] text-muted-foreground uppercase">{c.set_name}</div>
                                 </div>
                                 <div className="text-right">

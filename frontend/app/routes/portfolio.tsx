@@ -72,7 +72,7 @@ function Portfolio() {
           header: 'Card',
           cell: ({ row }) => (
               <div>
-                  <Link to={`/cards/${row.original.card_id}`} className="font-bold hover:underline hover:text-primary">
+                  <Link to={`/cards/${row.original.card_id}` as any} className="font-bold hover:underline hover:text-primary">
                       {row.original.card_name}
                   </Link>
                   <div className="text-[10px] text-muted-foreground uppercase">{row.original.card_set}</div>
