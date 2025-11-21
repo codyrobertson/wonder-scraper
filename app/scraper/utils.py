@@ -32,11 +32,14 @@ def build_ebay_url(card_name: str, set_name: str = None, sold_only: bool = True)
     params = {
         "_nkw": query,
         "_sacat": TCG_CATEGORY_ID,
-        "_ipg": "60", # Items per page
+        "_ipg": "240", # Max items per page to capture more history in one go
         "RT": "nc"    # Result type? often used in ebay urls
     }
     
     if sold_only:
+        # LH_Sold=1 implies sold items. eBay typically shows last 90 days of sold items.
+        # To get MORE history would require Terapeak or other paid APIs. 
+        # Standard eBay search is limited to ~90 days for sold listings.
         params["LH_Sold"] = "1"
         params["LH_Complete"] = "1"
         

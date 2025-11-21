@@ -12,7 +12,6 @@ router = APIRouter()
 @router.get("/overview")
 def read_market_overview(
     session: Session = Depends(get_session),
-    current_user = Depends(deps.get_current_user)
 ) -> Any:
     """
     Get optimized market overview statistics.

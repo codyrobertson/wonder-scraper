@@ -22,6 +22,7 @@ class MarketPriceBase(BaseModel):
     sold_date: Optional[datetime] = None
     listing_type: str
     treatment: Optional[str] = "Classic Paper" # Added treatment field
+    bid_count: Optional[int] = 0 # Added bid_count field
     scraped_at: datetime
 
 class MarketPriceOut(MarketPriceBase):
@@ -35,6 +36,7 @@ class CardBase(BaseModel):
 
 class CardOut(CardBase):
     id: int
+    rarity_name: Optional[str] = None # Added rarity_name
     # Flattened fields for easy table access
     latest_price: Optional[float] = None 
     volume_24h: Optional[int] = None
