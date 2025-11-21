@@ -77,7 +77,7 @@ function Home() {
       })).filter(c => (c.latest_price && c.latest_price > 0) || (c.volume_24h && c.volume_24h > 0)) // Filter out 0 listings
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh
-    cacheTime: 30 * 60 * 1000, // 30 minutes - cache persists
+    gcTime: 30 * 60 * 1000, // 30 minutes - cache persists (renamed from cacheTime in v5)
     refetchOnWindowFocus: false, // Don't refetch on tab focus
     refetchOnMount: false, // Don't refetch on component mount if data exists
   })
