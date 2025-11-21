@@ -42,6 +42,7 @@ class CardOut(CardBase):
     volume_24h: Optional[int] = None
     price_delta_24h: Optional[float] = None
     lowest_ask: Optional[float] = None
+    highest_bid: Optional[float] = None
     inventory: Optional[int] = None
 
 class CardWithMarket(CardOut):

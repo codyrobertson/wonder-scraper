@@ -51,7 +51,10 @@ async def bulk_scrape(limit: int = 1000, force_all: bool = False):
     
     try:
         for i, card in enumerate(cards_to_scrape):
-            search_term = f"{card.name} {card.set_name}"
+            # Simplified search term to catch more results. 
+            # Many listings don't include "Existence" or "Set 1".
+            # "Wonders of the First" is appended automatically by utils if needed, but let's be explicit.
+            search_term = f"{card.name} Wonders of the First"
             print(f"\n[{i+1}/{len(cards_to_scrape)}] Processing: {card.name}")
             
             try:

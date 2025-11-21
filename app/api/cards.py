@@ -10,12 +10,26 @@ from app.schemas import CardOut, MarketSnapshotOut, MarketPriceOut
 
 router = APIRouter()
 
+def _has_market_signal(card: CardOut) -> bool:
+    """
+    Determines if a card has any meaningful market data to display.
+    """
+    signal_candidates = [
+        card.latest_price,
+        card.volume_24h,
+        card.lowest_ask,
+        card.highest_bid,
+        card.inventory,
+    ]
+    return any((value or 0) > 0 for value in signal_candidates)
+
 @router.get("/", response_model=List[CardOut])
 def read_cards(
     session: Session = Depends(get_session),
     skip: int = 0,
     limit: int = 100,
     search: Optional[str] = None,
+    hide_zero: bool = True,
 ) -> Any:
     """
     Retrieve cards with latest market data.
@@ -54,8 +68,13 @@ def read_cards(
             volume_24h=latest_snap.volume if latest_snap else 0,
             price_delta_24h=delta if latest_snap else None,
             lowest_ask=latest_snap.lowest_ask if latest_snap else None,
+            highest_bid=latest_snap.highest_bid if latest_snap else None,
             inventory=latest_snap.inventory if latest_snap else 0
         )
+
+        if hide_zero and not _has_market_signal(c_out):
+            continue
+
         results.append(c_out)
     
     return results
