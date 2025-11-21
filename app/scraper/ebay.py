@@ -25,13 +25,48 @@ def parse_total_results(html_content: str) -> int:
     Parses the total number of results from the eBay search page header.
     """
     soup = BeautifulSoup(html_content, "lxml")
-    result_count_elem = soup.select_one(".srp-controls__count-heading, .srp-controls__count-heading span.BOLD")
-    if result_count_elem:
-        text = result_count_elem.get_text(strip=True)
-        match = re.search(r'([\d,]+)\s+results', text)
-        if match:
-            return int(match.group(1).replace(',', ''))
-    return 0
+    selectors = [
+        ".srp-controls__count-heading span.BOLD",
+        ".srp-controls__count-heading",
+        ".srp-controls__count .BOLD",
+        "[data-testid='srp-results-count']",
+    ]
+    candidate_texts = []
+    for selector in selectors:
+        candidate_elements = soup.select(selector)
+        for elem in candidate_elements:
+            text = elem.get_text(" ", strip=True)
+            if text:
+                candidate_texts.append(text)
+
+    # Some eBay headers expose the count via aria-label instead of inner text.
+    aria_elem = soup.select_one(".srp-controls__count-heading")
+    if aria_elem and aria_elem.has_attr("aria-label"):
+        candidate_texts.append(aria_elem["aria-label"])
+
+    patterns = [
+        r"Showing\s+\d+(?:-\d+)?\s+of\s+([\d,]+)",
+        r"([\d,]+)\s+results?",
+        r"([\d,]+)\s+Sold\s+results?",
+        r"([\d,]+)\s+active",
+        r"([\d,]+)\s+found",
+    ]
+
+    for text in candidate_texts:
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return int(match.group(1).replace(',', ''))
+
+    # Fallback: count the items we've parsed on the page
+    fallback_count = 0
+    for item in soup.select("li.s-item, li.s-card"):
+        classes = item.get("class", [])
+        if "s-item__header" in classes or "s-card__header" in classes:
+            continue
+        fallback_count += 1
+
+    return fallback_count
 
 def _detect_treatment(title: str) -> str:
     """
@@ -134,6 +169,15 @@ def _extract_bid_count(item) -> int:
         if match:
             return int(match.group(1))
             
+    # Try s-card layout selectors (text based search in attributes)
+    for row in item.select(".s-card__attribute-row span, .s-card__info span"):
+        text = row.get_text(strip=True)
+        # Match "X bids" or "0 bids"
+        if "bid" in text.lower():
+            match = re.search(r'(\d+)\s*bids?', text, re.IGNORECASE)
+            if match:
+                return int(match.group(1))
+            
     return 0
 
 def _clean_title_text(title: str) -> str:
@@ -172,6 +216,15 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
         
         if "Shop on eBay" in raw_title:
             continue
+
+        # Extract URL
+        link_elem = item.select_one("a.s-item__link, a.s-card__link")
+        url = None
+        if link_elem:
+            raw_url = link_elem.get("href", "")
+            if raw_url:
+                # Clean tracking params
+                url = raw_url.split("?")[0]
 
         # Clean title BEFORE validation
         title = _clean_title_text(raw_title)
@@ -218,6 +271,7 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
             listing_type=listing_type,
             treatment=treatment,
             bid_count=bid_count, # Populated now!
+            url=url,
             scraped_at=datetime.utcnow()
         )
         

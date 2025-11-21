@@ -20,6 +20,7 @@ type CardDetail = {
   price_delta_24h?: number
   lowest_ask?: number
   inventory?: number
+  highest_bid?: number
   // Calculated fields for display
   market_cap?: number
 }
@@ -32,6 +33,7 @@ type MarketPrice = {
     listing_type: string
     treatment?: string
     bid_count?: number
+    url?: string
 }
 
 export const Route = createRoute({
@@ -60,6 +62,7 @@ function CardDetail() {
               latest_price: market.avg_price,
               volume_24h: market.volume,
               lowest_ask: market.lowest_ask,
+              highest_bid: market.highest_bid,
               inventory: market.inventory,
               market_cap: (market.avg_price || 0) * (market.volume || 0) // Rough estimate
           }
@@ -267,13 +270,22 @@ function CardDetail() {
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
                      <div className="border border-border p-4 rounded bg-card/50 hover:bg-card transition-colors">
                         <div className="text-[10px] text-muted-foreground uppercase mb-2 flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
                             Lowest Ask
                         </div>
                         <div className="text-xl font-mono font-bold">${card.lowest_ask?.toFixed(2) || '---'}</div>
+                    </div>
+                     <div className="border border-border p-4 rounded bg-card/50 hover:bg-card transition-colors">
+                        <div className="text-[10px] text-muted-foreground uppercase mb-2 flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
+                            Highest Bid
+                        </div>
+                        <div className="text-xl font-mono font-bold">
+                            {card.highest_bid && card.highest_bid > 0 ? `$${card.highest_bid.toFixed(2)}` : '---'}
+                        </div>
                     </div>
                      <div className="border border-border p-4 rounded bg-card/50 hover:bg-card transition-colors">
                         <div className="text-[10px] text-muted-foreground uppercase mb-2 flex items-center gap-2">
@@ -597,12 +609,20 @@ function CardDetail() {
                         
                         {/* Placeholder for future URL */}
                         <div className="pt-2">
-                            <a href={`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(selectedListing.title)}&LH_Complete=1`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full border border-border hover:bg-muted/50 text-xs uppercase font-bold py-3 rounded transition-colors">
-                                <ExternalLink className="w-3 h-3" /> Find Original on eBay
-                            </a>
-                            <div className="text-[10px] text-center text-muted-foreground mt-2">
-                                *Link searches for this title as specific URLs are not yet archived.
-                            </div>
+                            {selectedListing.url ? (
+                                <a href={selectedListing.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full border border-border hover:bg-muted/50 text-xs uppercase font-bold py-3 rounded transition-colors text-primary border-primary/20 bg-primary/5">
+                                    <ExternalLink className="w-3 h-3" /> View Original Listing
+                                </a>
+                            ) : (
+                                <>
+                                    <a href={`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(selectedListing.title)}&LH_Complete=1`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full border border-border hover:bg-muted/50 text-xs uppercase font-bold py-3 rounded transition-colors">
+                                        <ExternalLink className="w-3 h-3" /> Find Original on eBay
+                                    </a>
+                                    <div className="text-[10px] text-center text-muted-foreground mt-2">
+                                        *Link searches for this title as specific URL is not archived.
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </>

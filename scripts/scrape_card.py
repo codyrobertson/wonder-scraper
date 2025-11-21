@@ -45,8 +45,11 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", s
     # Parse total volume from the page header if possible for accuracy
     total_volume = parse_total_results(html)
     # If parse_total_results returns 0 or fails, fallback to list length
-    if total_volume == 0 and prices:
-        total_volume = len(prices)
+    if prices:
+        if total_volume <= 0:
+            total_volume = len(prices)
+        else:
+            total_volume = max(total_volume, len(prices))
     
     if not prices:
         print("No sold data found.")

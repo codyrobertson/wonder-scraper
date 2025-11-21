@@ -14,6 +14,7 @@ type Card = {
   name: string
   set_name: string
   rarity_id: number
+  rarity_name?: string
   // Optional fields that might come from backend logic or joins
   latest_price?: number
   volume_24h?: number
@@ -21,6 +22,7 @@ type Card = {
   lowest_ask?: number
   inventory?: number
   volume_usd_24h?: number // New field for dollar volume
+  highest_bid?: number
 }
 
 type UserProfile = {
@@ -38,6 +40,12 @@ export const Route = createRoute({
 function Home() {
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+  const [rarityFilter, setRarityFilter] = useState('all')
+  const [setFilter, setSetFilter] = useState('all')
+  const [hasBidOnly, setHasBidOnly] = useState(false)
+  const [hasInventoryOnly, setHasInventoryOnly] = useState(false)
+  const [hideZeroRows, setHideZeroRows] = useState(true)
+  const [minVolume, setMinVolume] = useState(0)
   const navigate = useNavigate()
 
   // Fetch User Profile for Permissions
@@ -54,26 +62,65 @@ function Home() {
   })
 
   const { data: cards, isLoading } = useQuery({
-    queryKey: ['cards'],
+    queryKey: ['cards', 'full'],
     queryFn: async () => {
-      const data = await api.get('cards?limit=100').json<Card[]>()
+      const data = await api.get('cards?limit=100&hide_zero=false').json<Card[]>()
       return data.map(c => ({
           ...c,
-          // Logic: Use real data if available, fallback to mock ONLY if null/undefined for demo smoothness
-          // The API now returns flattened real data
+          rarity_name: c.rarity_name ?? 'Unknown',
           latest_price: c.latest_price ?? 0,
           volume_24h: c.volume_24h ?? 0,
           inventory: c.inventory ?? 0,
-          // These fields are not yet in schema/DB so we mock them or derive
-          // high_bid: (c.lowest_ask ?? c.latest_price ?? 0) * 0.9, // Removed mock high_bid
-          // low_ask: c.lowest_ask ?? (c.latest_price ?? 0) * 1.1, // Removed mock low_ask
-          // Only show delta if price exists
+          lowest_ask: c.lowest_ask ?? 0,
+          highest_bid: c.highest_bid ?? 0,
           price_delta_24h: c.price_delta_24h ?? 0,
-          volume_usd_24h: (c.volume_24h ?? 0) * (c.latest_price ?? 0), // Calculate dollar volume
-          highest_bid: (c as any).highest_bid ?? 0
-      })).filter(c => (c.latest_price && c.latest_price > 0) || (c.volume_24h && c.volume_24h > 0)) // Filter out 0 listings
+          volume_usd_24h: (c.volume_24h ?? 0) * (c.latest_price ?? 0),
+      }))
     }
   })
+
+  const uniqueRarities = useMemo(() => {
+    if (!cards) return []
+    return Array.from(new Set(cards.map(c => c.rarity_name).filter(Boolean))).sort()
+  }, [cards])
+
+  const uniqueSets = useMemo(() => {
+    if (!cards) return []
+    return Array.from(new Set(cards.map(c => c.set_name).filter(Boolean))).sort()
+  }, [cards])
+
+  const filteredCards = useMemo(() => {
+    if (!cards) return []
+    return cards.filter(card => {
+        const hasSignal = (
+            (card.latest_price ?? 0) > 0 ||
+            (card.volume_24h ?? 0) > 0 ||
+            (card.inventory ?? 0) > 0 ||
+            (card.highest_bid ?? 0) > 0
+        )
+
+        if (hideZeroRows && !hasSignal) {
+            return false
+        }
+        if (rarityFilter !== 'all' && card.rarity_name !== rarityFilter) {
+            return false
+        }
+        if (setFilter !== 'all' && card.set_name !== setFilter) {
+            return false
+        }
+        if (hasBidOnly && (card.highest_bid ?? 0) <= 0) {
+            return false
+        }
+        if (hasInventoryOnly && (card.inventory ?? 0) <= 0) {
+            return false
+        }
+        if (minVolume > 0 && (card.volume_24h ?? 0) < minVolume) {
+            return false
+        }
+
+        return true
+    })
+  }, [cards, hideZeroRows, rarityFilter, setFilter, hasBidOnly, hasInventoryOnly, minVolume])
 
   const columns = useMemo<ColumnDef<Card>[]>(() => [
     {
@@ -160,22 +207,40 @@ function Home() {
     {
         accessorKey: 'lowest_ask',
         header: () => <div className="text-right uppercase tracking-wider text-xs text-muted-foreground">Low Ask</div>,
-        cell: ({ row }) => <div className="text-right font-mono text-xs text-muted-foreground">${row.original.lowest_ask?.toFixed(2)}</div>
+        cell: ({ row }) => {
+            const lowAsk = row.original.lowest_ask ?? 0
+            return (
+                <div className="text-right font-mono text-xs text-muted-foreground">
+                    {lowAsk > 0 ? `$${lowAsk.toFixed(2)}` : '---'}
+                </div>
+            )
+        }
     },
     {
         accessorKey: 'highest_bid',
         header: () => <div className="text-right uppercase tracking-wider text-xs text-muted-foreground">High Bid</div>,
-        cell: ({ row }) => <div className="text-right font-mono text-xs text-muted-foreground">${(row.original as any).highest_bid?.toFixed(2) || '---'}</div>
+        cell: ({ row }) => {
+            const bid = row.original.highest_bid ?? 0
+            return (
+                <div className="text-right font-mono text-xs text-muted-foreground">
+                    {bid > 0 ? `$${bid.toFixed(2)}` : '---'}
+                </div>
+            )
+        }
     },
     {
         accessorKey: 'inventory',
         header: () => <div className="text-right uppercase tracking-wider text-xs text-muted-foreground">Inv</div>,
-        cell: ({ row }) => <div className="text-right font-mono text-xs text-muted-foreground">{row.original.inventory}</div>
+        cell: ({ row }) => (
+            <div className="text-right font-mono text-xs text-muted-foreground">
+                {row.original.inventory ?? 0}
+            </div>
+        )
     }
   ], [])
 
   const table = useReactTable({
-    data: cards || [],
+    data: filteredCards || [],
     columns,
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
@@ -190,20 +255,20 @@ function Home() {
 
   // Compute dynamic sidebars
   const topMovers = useMemo(() => {
-      if (!cards) return []
+      if (!filteredCards.length) return []
       // Filter items with price > 0 and sort by delta desc
-      return [...cards]
+      return [...filteredCards]
           .filter(c => (c.latest_price || 0) > 0)
           .sort((a, b) => (b.price_delta_24h || 0) - (a.price_delta_24h || 0))
           .slice(0, 5)
-  }, [cards])
+  }, [filteredCards])
 
   const topVolume = useMemo(() => {
-      if (!cards) return []
-      return [...cards]
+      if (!filteredCards.length) return []
+      return [...filteredCards]
           .sort((a, b) => (b.volume_24h || 0) - (a.volume_24h || 0))
           .slice(0, 5)
-  }, [cards])
+  }, [filteredCards])
 
   return (
     <div className="p-4 min-h-screen bg-background text-foreground font-mono">
@@ -285,6 +350,64 @@ function Home() {
         {/* Main Content */}
         <div className="col-span-12 md:col-span-8">
              <div className="border border-border rounded bg-card overflow-hidden">
+                <div className="border-b border-border bg-muted/20 p-4 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between text-[10px] uppercase text-muted-foreground">
+                        <span className="font-bold tracking-[0.3em]">Market Filters</span>
+                        <span>{filteredCards.length} / {cards?.length ?? 0} cards visible</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label className="flex flex-col gap-1 text-[10px] uppercase text-muted-foreground font-bold tracking-widest">
+                            Rarity
+                            <select 
+                                value={rarityFilter}
+                                onChange={(e) => setRarityFilter(e.target.value)}
+                                className="bg-background border border-border rounded px-2 py-1 text-xs uppercase focus:outline-none focus:ring-1 focus:ring-primary"
+                            >
+                                <option value="all">All Rarities</option>
+                                {uniqueRarities.map(r => (
+                                    <option key={r} value={r}>{r}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="flex flex-col gap-1 text-[10px] uppercase text-muted-foreground font-bold tracking-widest">
+                            Set
+                            <select 
+                                value={setFilter}
+                                onChange={(e) => setSetFilter(e.target.value)}
+                                className="bg-background border border-border rounded px-2 py-1 text-xs uppercase focus:outline-none focus:ring-1 focus:ring-primary"
+                            >
+                                <option value="all">All Sets</option>
+                                {uniqueSets.map(set => (
+                                    <option key={set} value={set}>{set}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="flex flex-col gap-1 text-[10px] uppercase text-muted-foreground font-bold tracking-widest">
+                            Min Volume
+                            <input 
+                                type="number"
+                                min={0}
+                                value={minVolume}
+                                onChange={(e) => setMinVolume(Math.max(0, Number(e.target.value) || 0))}
+                                className="bg-background border border-border rounded px-2 py-1 text-xs uppercase focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                        </label>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-[11px] uppercase text-muted-foreground">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" className="accent-primary" checked={hideZeroRows} onChange={(e) => setHideZeroRows(e.target.checked)} />
+                            Hide Zero Data
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" className="accent-primary" checked={hasBidOnly} onChange={(e) => setHasBidOnly(e.target.checked)} />
+                            Has Bids
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" className="accent-primary" checked={hasInventoryOnly} onChange={(e) => setHasInventoryOnly(e.target.checked)} />
+                            Has Inventory
+                        </label>
+                    </div>
+                </div>
                 {isLoading ? (
                     <div className="p-12 text-center">
                         <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
