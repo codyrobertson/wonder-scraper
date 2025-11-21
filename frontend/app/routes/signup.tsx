@@ -3,7 +3,10 @@ import { useState } from 'react'
 import { api } from '~/utils/auth'
 import { LogIn, AlertCircle } from 'lucide-react'
 
+import { Route as rootRoute } from './__root'
+
 export const Route = createRoute({
+  getParentRoute: () => rootRoute,
   path: '/signup',
   component: Signup,
 })

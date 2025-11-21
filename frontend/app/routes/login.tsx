@@ -1,4 +1,4 @@
-import { createRoute, redirect, useRouter } from '@tanstack/react-router'
+import { createRoute, redirect, useRouter, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { auth } from '../utils/auth'
 import { Route as rootRoute } from './__root'
@@ -91,7 +91,7 @@ function Login() {
 
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
-            <Link to="/signup" className="text-primary hover:underline font-bold">
+            <Link to={"/signup" as any} className="text-primary hover:underline font-bold">
               Sign Up
             </Link>
           </div>
