@@ -21,7 +21,13 @@ app = FastAPI(
 # Set all CORS enabled origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # For dev
+    allow_origins=[
+        "http://localhost:5173", # Vite default
+        "http://localhost:3000", # React default
+        "http://127.0.0.1:5173",
+        "https://wonderstracker.com", # Production
+        "*" # Fallback
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -59,7 +59,7 @@ class BrowserManager:
             
             # Pydoll will handle timeout internally now with start_timeout
             await cls._browser.start()
-            await asyncio.sleep(2)  # Give it time to fully initialize
+            # await asyncio.sleep(2) # Reduced startup wait
             print("Browser started successfully!")
         return cls._browser
 
@@ -118,13 +118,13 @@ async def get_page_content(url: str, retries: int = 3) -> str:
             tab = await browser.new_tab()
             
             try:
-                await asyncio.sleep(0.5) 
+                # await asyncio.sleep(0.5) # Removed pre-nav wait
                 
                 # Navigate with timeout
                 await asyncio.wait_for(tab.go_to(url), timeout=15)
                 
-                # Wait for content to load
-                await asyncio.sleep(2)
+                # Wait for content to load - Reduced
+                await asyncio.sleep(1)
                 
                 content = await tab.page_source
                 

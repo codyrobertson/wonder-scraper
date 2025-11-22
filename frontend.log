@@ -3,67 +3,7 @@
 > vite
 
 
-  VITE v5.4.21  ready in 411 ms
+  VITE v5.4.21  ready in 547 ms
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: use --host to expose
-12:20:02 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:20:13 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:20:15 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:20:32 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:20:36 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:20:51 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:21:01 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:21:05 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:21:23 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:21:42 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:21:56 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:22:07 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:22:56 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:22:56 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:22:58 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:22:58 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:22:58 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:22:58 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:22:58 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:22:58 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:23:14 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:23:17 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:23:21 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:23:32 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:23:32 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:23:44 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:23:44 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:23:50 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:25:29 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:25:42 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:25:52 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:26:32 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:26:39 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:27:27 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:27:29 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:27:31 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:27:33 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:27:35 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:27:37 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:27:45 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:28:10 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:28:20 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:28:41 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:28:53 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:29:35 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:29:37 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:29:44 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:30:03 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:30:12 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:31:05 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:31:15 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:31:17 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:31:23 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:31:34 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:32:13 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:32:22 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-12:33:23 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:33:33 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:33:33 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-12:33:34 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css

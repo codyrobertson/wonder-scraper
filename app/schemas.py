@@ -41,10 +41,15 @@ class CardOut(CardBase):
     latest_price: Optional[float] = None 
     volume_24h: Optional[int] = None
     price_delta_24h: Optional[float] = None
+    last_sale_diff: Optional[float] = None # Diff between last sale and avg price
+    last_sale_treatment: Optional[str] = None # Treatment of the last sold item
     lowest_ask: Optional[float] = None
     inventory: Optional[int] = None
     product_type: Optional[str] = None  # Single, Box, Pack, Proof
     max_price: Optional[float] = None  # Highest confirmed sale
+    avg_price: Optional[float] = None  # Average price
+    vwap: Optional[float] = None # Volume Weighted Average Price
+    last_updated: Optional[datetime] = None # When the market data was scraped
 
 class CardWithMarket(CardOut):
     market_snapshot: Optional[MarketSnapshotOut] = None

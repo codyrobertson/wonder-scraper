@@ -1,5 +1,8 @@
 from typing import Any, List, Optional
+import json
+import hashlib
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlmodel import Session, select, func, desc
 from datetime import datetime, timedelta
 
@@ -10,6 +13,10 @@ from app.models.market import MarketSnapshot, MarketPrice
 from app.schemas import CardOut, MarketSnapshotOut, MarketPriceOut
 
 router = APIRouter()
+
+# Simple in-memory cache
+_cache = {}
+_cache_ttl = {}
 
 def get_cache_key(endpoint: str, **params) -> str:
     """Generate cache key from endpoint and params."""
@@ -85,23 +92,87 @@ def read_cards(
     for snap in all_snapshots:
         if snap.card_id not in snapshots_by_card:
             snapshots_by_card[snap.card_id] = []
-        if len(snapshots_by_card[snap.card_id]) < 2:  # Only need latest 2
+        if len(snapshots_by_card[snap.card_id]) < 2:  # Keep latest and oldest in window logic
             snapshots_by_card[snap.card_id].append(snap)
+        # Actually, since we need OLDEST in window for meaningful delta, we should probably keep first and last
+        # But `snapshots_by_card` is populated from `all_snapshots` which is ordered DESC by timestamp
+        # So we want index 0 (newest) and index -1 (oldest in filtered set)
+        # The loop currently just appends. Let's fix this logic:
+        # We will just group ALL valid snapshots then pick first/last after loop
+    
+    # Correct logic: Group all then pick
+    snapshots_by_card = {}
+    for snap in all_snapshots:
+        if snap.card_id not in snapshots_by_card:
+            snapshots_by_card[snap.card_id] = []
+        snapshots_by_card[snap.card_id].append(snap)
     
     # Batch fetch rarities
     rarities = session.exec(select(Rarity)).all()
     rarity_map = {r.id: r.name for r in rarities}
     
+    # Batch fetch actual LAST SALE price (Postgres DISTINCT ON)
+    last_sale_map = {}
+    vwap_map = {}
+    if card_ids:
+        try:
+            from sqlalchemy import text
+            # Safe parameter binding
+            id_list = ", ".join(str(cid) for cid in card_ids)
+            query = text(f"""
+                SELECT DISTINCT ON (card_id) card_id, price, treatment
+                FROM marketprice
+                WHERE card_id IN ({id_list}) AND listing_type = 'sold'
+                ORDER BY card_id, sold_date DESC NULLS LAST
+            """)
+            results = session.exec(query).all()
+            # Store full object or dict for the card
+            last_sale_map = {row[0]: {'price': row[1], 'treatment': row[2]} for row in results}
+            
+            # Calculate VWAP (Average Sold Price)
+            vwap_query = text(f"""
+                SELECT card_id, AVG(price) as vwap
+                FROM marketprice
+                WHERE card_id IN ({id_list}) 
+                AND listing_type = 'sold'
+                {f"AND sold_date >= '{cutoff_time}'" if cutoff_time else ""}
+                GROUP BY card_id
+            """)
+            vwap_results = session.exec(vwap_query).all()
+            vwap_map = {row[0]: row[1] for row in vwap_results}
+            
+        except Exception as e:
+            print(f"Error fetching sales data: {e}")
+    
     # Build results
     results = []
     for card in cards:
         card_snaps = snapshots_by_card.get(card.id, [])
-        latest_snap = card_snaps[0] if len(card_snaps) > 0 else None
-        prev_snap = card_snaps[1] if len(card_snaps) > 1 else None
+        latest_snap = card_snaps[0] if card_snaps else None
+        oldest_snap = card_snaps[-1] if card_snaps else None # Oldest in the time window
         
-        delta = 0.0
-        if latest_snap and prev_snap and prev_snap.avg_price > 0:
-            delta = ((latest_snap.avg_price - prev_snap.avg_price) / prev_snap.avg_price) * 100
+        # Use actual last sale if available, otherwise fallback to avg
+        last_sale_data = last_sale_map.get(card.id)
+        last_price = last_sale_data['price'] if last_sale_data else None
+        last_treatment = last_sale_data['treatment'] if last_sale_data else None
+        
+        if last_price is None and latest_snap:
+            last_price = latest_snap.avg_price
+            
+        # Get VWAP
+        vwap = vwap_map.get(card.id)
+        
+        # 1. Market Trend Delta (Avg Price vs Oldest Avg Price in window)
+        avg_delta = 0.0
+        if latest_snap and oldest_snap and oldest_snap.avg_price > 0:
+            # Check if they are different snapshots to avoid 0 delta on single data point
+            if latest_snap.id != oldest_snap.id:
+                avg_delta = ((latest_snap.avg_price - oldest_snap.avg_price) / oldest_snap.avg_price) * 100
+                
+        # 2. Deal Rating Delta (Last Sale vs Current Avg Price)
+        deal_delta = 0.0
+        if last_price and latest_snap and latest_snap.avg_price > 0:
+             deal_delta = ((last_price - latest_snap.avg_price) / latest_snap.avg_price) * 100
         
         c_out = CardOut(
             id=card.id,
@@ -109,18 +180,23 @@ def read_cards(
             set_name=card.set_name,
             rarity_id=card.rarity_id,
             rarity_name=rarity_map.get(card.rarity_id, "Unknown"),
-            latest_price=latest_snap.avg_price if latest_snap else None,
+            latest_price=last_price,
             volume_24h=latest_snap.volume if latest_snap else 0,
-            price_delta_24h=delta if latest_snap else None,
+            price_delta_24h=avg_delta, # Now reflects Market Trend (Avg Price)
+            last_sale_diff=deal_delta, # Now reflects Deal Rating (Last Sale vs Avg)
+            last_sale_treatment=last_treatment, # Added treatment
             lowest_ask=latest_snap.lowest_ask if latest_snap else None,
             inventory=latest_snap.inventory if latest_snap else 0,
             product_type=card.product_type if hasattr(card, 'product_type') else "Single",
-            max_price=latest_snap.max_price if latest_snap else None
+            max_price=latest_snap.max_price if latest_snap else None,
+            avg_price=latest_snap.avg_price if latest_snap else None,
+            vwap=vwap if vwap else (latest_snap.avg_price if latest_snap else None),
+            last_updated=latest_snap.timestamp if latest_snap else None # Add last_updated from snapshot
         )
         results.append(c_out)
     
     # Convert to dict for caching
-    results_dict = [r.model_dump() for r in results]
+    results_dict = [r.model_dump(mode='json') for r in results]
     set_cache(cache_key, results_dict, ttl=300)  # 5 minutes
     
     return JSONResponse(content=results_dict, headers={"X-Cache": "MISS"})
@@ -148,15 +224,50 @@ def read_card(
             rarity_name = rarity.name
     
     # Fetch latest 2 snapshots to calculate delta
-    stmt = select(MarketSnapshot).where(MarketSnapshot.card_id == card_id).order_by(desc(MarketSnapshot.timestamp)).limit(2)
+    # We want to find OLDEST snapshot in the window for meaningful delta
+    # Since this is single card view, let's just get all recent ones and pick
+    # Or simpler: Get latest and one from 24h ago
+    stmt = select(MarketSnapshot).where(MarketSnapshot.card_id == card_id).order_by(desc(MarketSnapshot.timestamp)).limit(50)
     snapshots = session.exec(stmt).all()
     
     latest_snap = snapshots[0] if snapshots else None
-    prev_snap = snapshots[1] if len(snapshots) > 1 else None
+    # Rough approximation for "oldest in recent history" since we don't have time_period param here easily
+    # Let's just take the last one fetched (up to 50 snapshots ago)
+    oldest_snap = snapshots[-1] if snapshots else None
     
-    delta = 0.0
-    if latest_snap and prev_snap and prev_snap.avg_price > 0:
-        delta = ((latest_snap.avg_price - prev_snap.avg_price) / prev_snap.avg_price) * 100
+    # Fetch actual last sale
+    last_sale = session.exec(
+        select(MarketPrice)
+        .where(MarketPrice.card_id == card_id, MarketPrice.listing_type == "sold")
+        .order_by(desc(MarketPrice.sold_date))
+        .limit(1)
+    ).first()
+    
+    real_price = last_sale.price if last_sale else (latest_snap.avg_price if latest_snap else None)
+    real_treatment = last_sale.treatment if last_sale else None
+    
+    # Calculate VWAP for single card (past 30 days default)
+    vwap = None
+    try:
+        from sqlalchemy import text
+        cutoff_30d = datetime.utcnow() - timedelta(days=30)
+        vwap_q = text(f"""
+            SELECT AVG(price) FROM marketprice 
+            WHERE card_id = :cid AND listing_type = 'sold' AND sold_date >= :cutoff
+        """)
+        vwap = session.exec(vwap_q, params={"cid": card_id, "cutoff": cutoff_30d}).first()[0]
+    except Exception:
+        pass
+
+    # 1. Market Trend Delta
+    avg_delta = 0.0
+    if latest_snap and oldest_snap and oldest_snap.avg_price > 0 and latest_snap.id != oldest_snap.id:
+        avg_delta = ((latest_snap.avg_price - oldest_snap.avg_price) / oldest_snap.avg_price) * 100
+            
+    # 2. Deal Rating Delta
+    deal_delta = 0.0
+    if real_price and latest_snap and latest_snap.avg_price > 0:
+        deal_delta = ((real_price - latest_snap.avg_price) / latest_snap.avg_price) * 100
             
     c_out = CardOut(
         id=card.id,
@@ -164,17 +275,22 @@ def read_card(
         set_name=card.set_name,
         rarity_id=card.rarity_id,
         rarity_name=rarity_name,
-        latest_price=latest_snap.avg_price if latest_snap else None,
+        latest_price=real_price,
         volume_24h=latest_snap.volume if latest_snap else 0,
-        price_delta_24h=delta if latest_snap else None,
+        price_delta_24h=avg_delta,
+        last_sale_diff=deal_delta,
+        last_sale_treatment=real_treatment,
         lowest_ask=latest_snap.lowest_ask if latest_snap else None,
         inventory=latest_snap.inventory if latest_snap else 0,
         product_type=card.product_type if hasattr(card, 'product_type') else "Single",
-        max_price=latest_snap.max_price if latest_snap else None
+        max_price=latest_snap.max_price if latest_snap else None,
+        avg_price=latest_snap.avg_price if latest_snap else None,
+        vwap=vwap if vwap else (latest_snap.avg_price if latest_snap else None),
+        last_updated=latest_snap.timestamp if latest_snap else None # Add last_updated from snapshot
     )
     
     # Cache result
-    result_dict = c_out.model_dump()
+    result_dict = c_out.model_dump(mode='json')
     set_cache(cache_key, result_dict, ttl=300)
     
     return JSONResponse(content=result_dict, headers={"X-Cache": "MISS"})

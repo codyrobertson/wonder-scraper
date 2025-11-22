@@ -13,4 +13,5 @@ class User(SQLModel, table=True):
     # Profile Fields
     username: Optional[str] = Field(default=None, nullable=True)
     discord_handle: Optional[str] = Field(default=None, nullable=True)
+    discord_id: Optional[str] = Field(default=None, nullable=True, sa_column_kwargs={"unique": True})
     bio: Optional[str] = Field(default=None, nullable=True)
