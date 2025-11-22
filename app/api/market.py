@@ -1,55 +1,152 @@
-from typing import Any, List
-from fastapi import APIRouter, Depends
+from typing import Any, List, Optional
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, func, desc
+from datetime import datetime, timedelta
 
 from app.api import deps
 from app.db import get_session
-from app.models.card import Card
-from app.models.market import MarketSnapshot
+from app.models.card import Card, Rarity
+from app.models.market import MarketSnapshot, MarketPrice
 
 router = APIRouter()
 
 @router.get("/overview")
 def read_market_overview(
     session: Session = Depends(get_session),
+    time_period: Optional[str] = Query(default="24h", regex="^(24h|7d|30d|90d|all)$"),
 ) -> Any:
     """
-    Get optimized market overview statistics.
-    Returns a list of cards with their latest market snapshot data.
+    Get robust market overview statistics with temporal data.
     """
-    # We want to fetch all cards and their LATEST market snapshot.
-    # In SQLModel/SQLAlchemy, a window function or distinct on is efficient, 
-    # but for simplicity and compatibility, we'll fetch all snapshots that are the "latest" per card.
+    # Calculate time cutoff
+    time_cutoffs = {
+        "24h": timedelta(hours=24),
+        "7d": timedelta(days=7),
+        "30d": timedelta(days=30),
+        "90d": timedelta(days=90),
+        "all": None
+    }
+    cutoff_delta = time_cutoffs.get(time_period)
+    cutoff_time = datetime.utcnow() - cutoff_delta if cutoff_delta else None
     
-    # Optimized Query: Join Card with MarketSnapshot
-    # We use a subquery or just distinct(card_id) order by timestamp desc if supported,
-    # but distinct on is Postgres specific. 
+    # Fetch all cards
+    cards = session.exec(select(Card)).all()
+    if not cards:
+        return []
     
-    # Strategy: Fetch all cards + their latest snapshot in one go.
-    # Since we have 427 cards, we can just fetch the latest snapshot for each.
+    card_ids = [c.id for c in cards]
     
-    # Let's use a subquery to find max id (or timestamp) per card_id
-    # subq = select(func.max(MarketSnapshot.id)).group_by(MarketSnapshot.card_id)
+    # Batch fetch snapshots
+    snapshot_query = select(MarketSnapshot).where(MarketSnapshot.card_id.in_(card_ids))
+    if cutoff_time:
+        snapshot_query = snapshot_query.where(MarketSnapshot.timestamp >= cutoff_time)
+    snapshot_query = snapshot_query.order_by(MarketSnapshot.card_id, desc(MarketSnapshot.timestamp))
+    all_snapshots = session.exec(snapshot_query).all()
     
-    # Actually, joining Card and MarketSnapshot where MarketSnapshot is the latest is standard.
-    # For now, to ensure it's "instant", we will just query Card and join the latest Snapshot.
-    
-    # Postgres DISTINCT ON is fastest:
-    stmt = select(Card, MarketSnapshot).join(MarketSnapshot, isouter=True).distinct(Card.id).order_by(Card.id, desc(MarketSnapshot.timestamp))
-    
-    results = session.exec(stmt).all()
-    
+    snapshots_by_card = {}
+    for snap in all_snapshots:
+        if snap.card_id not in snapshots_by_card:
+            snapshots_by_card[snap.card_id] = []
+        snapshots_by_card[snap.card_id].append(snap)
+        
+    # Batch fetch actual LAST SALE price (Postgres DISTINCT ON)
+    last_sale_map = {}
+    vwap_map = {}
+    if card_ids:
+        try:
+            from sqlalchemy import text
+            id_list = ", ".join(str(cid) for cid in card_ids)
+            query = text(f"""
+                SELECT DISTINCT ON (card_id) card_id, price, treatment
+                FROM marketprice
+                WHERE card_id IN ({id_list}) AND listing_type = 'sold'
+                ORDER BY card_id, sold_date DESC NULLS LAST
+            """)
+            results = session.exec(query).all()
+            last_sale_map = {row[0]: {'price': row[1], 'treatment': row[2]} for row in results}
+            
+            # Calculate VWAP
+            vwap_query = text(f"""
+                SELECT card_id, AVG(price) as vwap
+                FROM marketprice
+                WHERE card_id IN ({id_list}) 
+                AND listing_type = 'sold'
+                {f"AND sold_date >= '{cutoff_time}'" if cutoff_time else ""}
+                GROUP BY card_id
+            """)
+            vwap_results = session.exec(vwap_query).all()
+            vwap_map = {row[0]: row[1] for row in vwap_results}
+            
+        except Exception as e:
+            print(f"Error fetching last sales: {e}")
+
     overview_data = []
-    for card, snapshot in results:
+    for card in cards:
+        card_snaps = snapshots_by_card.get(card.id, [])
+        latest_snap = card_snaps[0] if card_snaps else None
+        oldest_snap = card_snaps[-1] if card_snaps else None
+        
+        last_sale_data = last_sale_map.get(card.id)
+        last_price = last_sale_data['price'] if last_sale_data else None
+        
+        if last_price is None and latest_snap:
+            last_price = latest_snap.avg_price
+            
+        # Get VWAP
+        vwap = vwap_map.get(card.id)
+        effective_price = vwap if vwap else (latest_snap.avg_price if latest_snap else 0.0)
+            
+        # Market Trend Delta
+        avg_delta = 0.0
+        if latest_snap and oldest_snap and oldest_snap.avg_price > 0:
+             if latest_snap.id != oldest_snap.id:
+                avg_delta = ((latest_snap.avg_price - oldest_snap.avg_price) / oldest_snap.avg_price) * 100
+                
+        # Deal Rating Delta
+        deal_delta = 0.0
+        if last_price and latest_snap and latest_snap.avg_price > 0:
+             deal_delta = ((last_price - latest_snap.avg_price) / latest_snap.avg_price) * 100
+
         overview_data.append({
             "id": card.id,
             "name": card.name,
             "set_name": card.set_name,
             "rarity_id": card.rarity_id,
-            "latest_price": snapshot.avg_price if snapshot else 0.0,
-            "volume_24h": snapshot.volume if snapshot else 0,
-            "price_delta_24h": 0.0, # Placeholder for speed
-            "market_cap": (snapshot.avg_price if snapshot else 0) * (snapshot.volume if snapshot else 0)
+            "latest_price": last_price or 0.0,
+            "avg_price": latest_snap.avg_price if latest_snap else 0.0,
+            "vwap": effective_price,
+            "volume_period": latest_snap.volume if latest_snap else 0, 
+            "volume_change": (latest_snap.volume - oldest_snap.volume) if (latest_snap and oldest_snap) else 0,
+            "price_delta_period": avg_delta,
+            "deal_rating": deal_delta,
+            "market_cap": (last_price or 0) * (latest_snap.volume if latest_snap else 0)
         })
         
     return overview_data
+
+@router.get("/activity")
+def read_market_activity(
+    session: Session = Depends(get_session),
+    limit: int = 20,
+) -> Any:
+    """
+    Get recent market activity (sales) across all cards.
+    """
+    from app.models.market import MarketPrice
+    
+    # Join with Card to get card details
+    query = select(MarketPrice, Card.name, Card.id).join(Card).where(MarketPrice.listing_type == "sold").order_by(desc(MarketPrice.sold_date)).limit(limit)
+    results = session.exec(query).all()
+    
+    activity_data = []
+    for sale, card_name, card_id in results:
+        activity_data.append({
+            "card_id": card_id,
+            "card_name": card_name,
+            "price": sale.price,
+            "date": sale.sold_date,
+            "treatment": sale.treatment,
+            "platform": sale.platform
+        })
+        
+    return activity_data
