@@ -35,3 +35,6 @@
 6:36:00 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
 6:36:00 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
 6:36:24 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
+7:35:53 PM [vite] vite.config.ts changed, restarting server...
+Re-optimizing dependencies because vite config has changed
+7:35:53 PM [vite] server restarted.
