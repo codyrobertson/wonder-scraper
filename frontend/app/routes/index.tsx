@@ -38,7 +38,8 @@ export const Route = createRoute({
 })
 
 function Home() {
-  const [sorting, setSorting] = useState<SortingState>([])
+  // Default sort by volume descending
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'volume_24h', desc: true }])
   const [globalFilter, setGlobalFilter] = useState('')
   const [timePeriod, setTimePeriod] = useState<string>('24h')
   const [productType, setProductType] = useState<string>('all')
@@ -263,17 +264,21 @@ function Home() {
         id: 'track',
         header: () => <div className="text-xs uppercase tracking-wider text-muted-foreground text-center">Track</div>,
         cell: ({ row }) => {
-            if (!user) return null
             return (
                 <div className="flex justify-center">
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
-                            setTrackingCard(row.original)
-                            setTrackForm({ quantity: 1, purchase_price: row.original.vwap || row.original.latest_price || 0 })
+                            if (!user) {
+                                // Redirect to login if not logged in
+                                navigate({ to: '/login' })
+                            } else {
+                                setTrackingCard(row.original)
+                                setTrackForm({ quantity: 1, purchase_price: row.original.vwap || row.original.latest_price || 0 })
+                            }
                         }}
                         className="p-1.5 rounded border border-border hover:bg-primary hover:text-primary-foreground transition-colors group"
-                        title="Add to Portfolio"
+                        title={user ? "Add to Portfolio" : "Login to Track"}
                     >
                         <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -281,7 +286,7 @@ function Home() {
             )
         }
     }
-  ], [user])
+  ], [user, navigate])
 
   const table = useReactTable({
     data: cards || [],

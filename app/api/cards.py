@@ -181,7 +181,21 @@ def read_cards(
             premium_high_results = session.exec(premium_high_query).all()
             premium_high_map = {row[0]: row[1] for row in premium_high_results}
             premium_volume_map = {row[0]: row[2] for row in premium_high_results}
-            
+
+            # Calculate actual volume for the time period (count of sales)
+            # This replaces snapshot.volume which represents all-time volume
+            volume_map = {}
+            volume_query = text(f"""
+                SELECT card_id, COUNT(*) as volume
+                FROM marketprice
+                WHERE card_id IN ({id_list})
+                AND listing_type = 'sold'
+                {f"AND sold_date >= '{cutoff_time}'" if cutoff_time else ""}
+                GROUP BY card_id
+            """)
+            volume_results = session.exec(volume_query).all()
+            volume_map = {row[0]: row[1] for row in volume_results}
+
             # Fetch Previous Closing Price (Price BEFORE cutoff)
             if cutoff_time:
                 prev_price_query = text(f"""
@@ -242,7 +256,7 @@ def read_cards(
             rarity_id=card.rarity_id,
             rarity_name=rarity_map.get(card.rarity_id, "Unknown"),
             latest_price=last_price,
-            volume_24h=latest_snap.volume if latest_snap else 0,
+            volume_24h=volume_map.get(card.id, 0),  # Actual sales count for time period
             price_delta_24h=avg_delta, # Now reflects Market Trend (Avg Price)
             last_sale_diff=deal_delta, # Now reflects Deal Rating (Last Sale vs Avg)
             last_sale_treatment=last_treatment, # Added treatment
@@ -317,10 +331,18 @@ def read_card(
     premium_high = None
     base_volume = 0
     premium_volume = 0
+    total_volume = 0
     prev_close = None
     try:
         from sqlalchemy import text
         cutoff_30d = datetime.utcnow() - timedelta(days=30)
+
+        # Total volume (count of sales in time period)
+        volume_q = text(f"""
+            SELECT COUNT(*) FROM marketprice
+            WHERE card_id = :cid AND listing_type = 'sold' AND sold_date >= :cutoff
+        """)
+        total_volume = session.exec(volume_q, params={"cid": card_id, "cutoff": cutoff_30d}).first()[0] or 0
 
         # VWAP (all treatments)
         vwap_q = text(f"""
@@ -389,7 +411,7 @@ def read_card(
         rarity_id=card.rarity_id,
         rarity_name=rarity_name,
         latest_price=real_price,
-        volume_24h=latest_snap.volume if latest_snap else 0,
+        volume_24h=total_volume,  # Actual sales count for time period
         price_delta_24h=avg_delta,
         last_sale_diff=deal_delta,
         last_sale_treatment=real_treatment,
