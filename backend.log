@@ -141,3 +141,112 @@ INFO:     127.0.0.1:64625 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:64625 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
 INFO:     127.0.0.1:64624 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:64625 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+[2025-11-23 03:14:56.040371] Starting Scheduled Market Update...
+[Polling] Updating 421 cards...
+Using Chrome at: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+Starting new browser instance (this may take up to 60 seconds)...
+Browser started successfully!
+[Polling] Updating: The First Existence
+--- Scraping: The First (Rarity: ) ---
+Search Queries: ['The First Existence', 'The First Wonders of the First', 'The First Wonders of the First TCG', 'The First Wonders of the First CCG']
+Fetching active listings...
+[Polling] Updating: Aerius of Thalwind Existence
+--- Scraping: Aerius of Thalwind (Rarity: ) ---
+Search Queries: ['Aerius of Thalwind Existence', 'Aerius of Thalwind', 'Aerius of Thalwind Wonders of the First', 'Aerius of Thalwind Wonders of the First TCG', 'Aerius of Thalwind Wonders of the First CCG']
+Fetching active listings...
+[Polling] Updating: Aetherion of Boundless Existence
+--- Scraping: Aetherion of Boundless (Rarity: ) ---
+Search Queries: ['Aetherion of Boundless Existence', 'Aetherion of Boundless', 'Aetherion of Boundless Wonders of the First', 'Aetherion of Boundless Wonders of the First TCG', 'Aetherion of Boundless Wonders of the First CCG']
+Fetching active listings...
+Trying Query: Aetherion of Boundless Existence
+Trying Query: Aerius of Thalwind Existence
+Trying Query: The First Existence
+Found 7 new results with 'The First Existence'. Total unique: 7
+Trying Query: The First Wonders of the First
+Found 5 new results with 'Aetherion of Boundless Existence'. Total unique: 5
+Trying Query: Aetherion of Boundless
+Found 1 new results with 'Aerius of Thalwind Existence'. Total unique: 1
+Trying Query: Aerius of Thalwind
+Found 4 new results with 'The First Wonders of the First'. Total unique: 11
+Trying Query: The First Wonders of the First TCG
+Found 0 new results with 'Aetherion of Boundless'. Total unique: 5
+Trying Query: Aetherion of Boundless Wonders of the First
+Found 0 new results with 'Aerius of Thalwind'. Total unique: 1
+Trying Query: Aerius of Thalwind Wonders of the First
+Found 0 new results with 'The First Wonders of the First TCG'. Total unique: 11
+Trying Query: The First Wonders of the First CCG
+Found 0 new results with 'The First Wonders of the First CCG'. Total unique: 11
+Total sold listings across 1 page(s): 11
+Stats: {'min': 0.5, 'max': 389.69, 'avg': 62.47, 'volume': 11} (Total Vol from Header: 11)
+Saved Snapshot ID: 3792
+Found 0 new results with 'Aerius of Thalwind Wonders of the First'. Total unique: 1
+Trying Query: Aerius of Thalwind Wonders of the First TCG
+Found 0 new results with 'Aetherion of Boundless Wonders of the First'. Total unique: 5
+Trying Query: Aetherion of Boundless Wonders of the First TCG
+[Polling] Updated The First: Ask=$1.99, Inv=22
+Found 0 new results with 'Aerius of Thalwind Wonders of the First TCG'. Total unique: 1
+Trying Query: Aerius of Thalwind Wonders of the First CCG
+Found 0 new results with 'Aetherion of Boundless Wonders of the First TCG'. Total unique: 5
+Trying Query: Aetherion of Boundless Wonders of the First CCG
+Found 0 new results with 'Aerius of Thalwind Wonders of the First CCG'. Total unique: 1
+Total sold listings across 2 page(s): 1
+Stats: {'min': 8.99, 'max': 8.99, 'avg': 8.99, 'volume': 1} (Total Vol from Header: 1)
+Saved Snapshot ID: 3793
+Found 0 new results with 'Aetherion of Boundless Wonders of the First CCG'. Total unique: 5
+Total sold listings across 2 page(s): 5
+Stats: {'min': 13.45, 'max': 25.0, 'avg': 19.59, 'volume': 5} (Total Vol from Header: 5)
+Saved Snapshot ID: 3794
+[Polling] Updated Aetherion of Boundless: Ask=$0.0, Inv=0
+[Polling] Updated Aerius of Thalwind: Ask=$11.99, Inv=5
+[Polling] Updating: Agaric Supreme Existence
+--- Scraping: Agaric Supreme (Rarity: ) ---
+Search Queries: ['Agaric Supreme Existence', 'Agaric Supreme', 'Agaric Supreme Wonders of the First', 'Agaric Supreme Wonders of the First TCG', 'Agaric Supreme Wonders of the First CCG']
+Fetching active listings...
+[Polling] Updating: Astrox A-10 Existence
+--- Scraping: Astrox A-10 (Rarity: ) ---
+Search Queries: ['Astrox A-10 Existence', 'Astrox A-10', 'Astrox A-10 Wonders of the First', 'Astrox A-10 Wonders of the First TCG', 'Astrox A-10 Wonders of the First CCG']
+Fetching active listings...
+[Polling] Updating: Autumn, Essence Animated Existence
+--- Scraping: Autumn, Essence Animated (Rarity: ) ---
+Search Queries: ['Autumn, Essence Animated Existence', 'Autumn, Essence Animated', 'Autumn, Essence Animated Wonders of the First', 'Autumn, Essence Animated Wonders of the First TCG', 'Autumn, Essence Animated Wonders of the First CCG']
+Fetching active listings...
+Trying Query: Autumn, Essence Animated Existence
+Trying Query: Agaric Supreme Existence
+Trying Query: Astrox A-10 Existence
+Found 0 new results with 'Astrox A-10 Existence'. Total unique: 0
+Trying Query: Astrox A-10
+Found 0 new results with 'Astrox A-10'. Total unique: 0
+Trying Query: Astrox A-10 Wonders of the First
+Found 0 new results with 'Astrox A-10 Wonders of the First'. Total unique: 0
+Trying Query: Astrox A-10 Wonders of the First TCG
+Found 0 new results with 'Astrox A-10 Wonders of the First TCG'. Total unique: 0
+Trying Query: Astrox A-10 Wonders of the First CCG
+INFO:     127.0.0.1:50297 - "GET /api/v1/users/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:50298 - "OPTIONS /api/v1/users/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50299 - "OPTIONS /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50300 - "OPTIONS /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50298 - "GET /api/v1/users/me HTTP/1.1" 401 Unauthorized
+Found 3 new results with 'Autumn, Essence Animated Existence'. Total unique: 3
+Trying Query: Autumn, Essence Animated
+INFO:     127.0.0.1:50300 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50300 - "OPTIONS /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50300 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50299 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50300 - "OPTIONS /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50300 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'app/core/config.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [73479]
+INFO:     Started server process [95728]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app/api/auth.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [95728]
+INFO:     Started server process [96398]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
