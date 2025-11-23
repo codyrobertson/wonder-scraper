@@ -119,8 +119,12 @@ def read_cards(
     # Batch fetch actual LAST SALE price (Postgres DISTINCT ON)
     last_sale_map = {}
     vwap_map = {}
+    base_price_map = {}  # VWAP for base treatments only
+    premium_high_map = {}  # Highest premium variant price
+    base_volume_map = {}  # Volume of base treatment sales
+    premium_volume_map = {}  # Volume of premium treatment sales
     prev_price_map = {} # Price N hours ago
-    
+
     if card_ids:
         try:
             from sqlalchemy import text
@@ -135,18 +139,48 @@ def read_cards(
             results = session.exec(query).all()
             # Store full object or dict for the card
             last_sale_map = {row[0]: {'price': row[1], 'treatment': row[2]} for row in results}
-            
-            # Calculate VWAP (Average Sold Price)
+
+            # Calculate VWAP (Average Sold Price - ALL treatments)
             vwap_query = text(f"""
                 SELECT card_id, AVG(price) as vwap
                 FROM marketprice
-                WHERE card_id IN ({id_list}) 
+                WHERE card_id IN ({id_list})
                 AND listing_type = 'sold'
                 {f"AND sold_date >= '{cutoff_time}'" if cutoff_time else ""}
                 GROUP BY card_id
             """)
             vwap_results = session.exec(vwap_query).all()
             vwap_map = {row[0]: row[1] for row in vwap_results}
+
+            # Calculate BASE PRICE (VWAP for base treatments only)
+            # Base treatments: Classic Paper, Classic Foil
+            base_price_query = text(f"""
+                SELECT card_id, AVG(price) as base_price, COUNT(*) as volume
+                FROM marketprice
+                WHERE card_id IN ({id_list})
+                AND listing_type = 'sold'
+                AND treatment IN ('Classic Paper', 'Classic Foil')
+                {f"AND sold_date >= '{cutoff_time}'" if cutoff_time else ""}
+                GROUP BY card_id
+            """)
+            base_price_results = session.exec(base_price_query).all()
+            base_price_map = {row[0]: row[1] for row in base_price_results}
+            base_volume_map = {row[0]: row[2] for row in base_price_results}
+
+            # Calculate PREMIUM HIGH (Max price for premium treatments)
+            # Premium treatments: Stonefoil, Formless Foil, OCM Serialized, Prerelease, Promo
+            premium_high_query = text(f"""
+                SELECT card_id, MAX(price) as premium_high, COUNT(*) as volume
+                FROM marketprice
+                WHERE card_id IN ({id_list})
+                AND listing_type = 'sold'
+                AND treatment NOT IN ('Classic Paper', 'Classic Foil')
+                {f"AND sold_date >= '{cutoff_time}'" if cutoff_time else ""}
+                GROUP BY card_id
+            """)
+            premium_high_results = session.exec(premium_high_query).all()
+            premium_high_map = {row[0]: row[1] for row in premium_high_results}
+            premium_volume_map = {row[0]: row[2] for row in premium_high_results}
             
             # Fetch Previous Closing Price (Price BEFORE cutoff)
             if cutoff_time:
@@ -218,6 +252,10 @@ def read_cards(
             max_price=latest_snap.max_price if latest_snap else None,
             avg_price=latest_snap.avg_price if latest_snap else None,
             vwap=vwap if vwap else (latest_snap.avg_price if latest_snap else None),
+            base_price=base_price_map.get(card.id),  # Base treatment VWAP
+            premium_high=premium_high_map.get(card.id),  # Highest premium variant
+            base_volume=base_volume_map.get(card.id, 0),  # Base treatment volume
+            premium_volume=premium_volume_map.get(card.id, 0),  # Premium treatment volume
             last_updated=latest_snap.timestamp if latest_snap else None # Add last_updated from snapshot
         )
         results.append(c_out)
@@ -273,28 +311,58 @@ def read_card(
     real_price = last_sale.price if last_sale else (latest_snap.avg_price if latest_snap else None)
     real_treatment = last_sale.treatment if last_sale else None
     
-    # Calculate VWAP for single card (past 30 days default)
+    # Calculate VWAP and treatment-specific prices for single card (past 30 days default)
     vwap = None
+    base_price = None
+    premium_high = None
+    base_volume = 0
+    premium_volume = 0
     prev_close = None
     try:
         from sqlalchemy import text
         cutoff_30d = datetime.utcnow() - timedelta(days=30)
+
+        # VWAP (all treatments)
         vwap_q = text(f"""
-            SELECT AVG(price) FROM marketprice 
+            SELECT AVG(price) FROM marketprice
             WHERE card_id = :cid AND listing_type = 'sold' AND sold_date >= :cutoff
         """)
         vwap = session.exec(vwap_q, params={"cid": card_id, "cutoff": cutoff_30d}).first()[0]
-        
+
+        # Base Price (Classic Paper/Foil only)
+        base_price_q = text(f"""
+            SELECT AVG(price), COUNT(*) FROM marketprice
+            WHERE card_id = :cid AND listing_type = 'sold'
+            AND treatment IN ('Classic Paper', 'Classic Foil')
+            AND sold_date >= :cutoff
+        """)
+        base_res = session.exec(base_price_q, params={"cid": card_id, "cutoff": cutoff_30d}).first()
+        if base_res:
+            base_price = base_res[0]
+            base_volume = base_res[1] or 0
+
+        # Premium High (max price of premium treatments)
+        premium_q = text(f"""
+            SELECT MAX(price), COUNT(*) FROM marketprice
+            WHERE card_id = :cid AND listing_type = 'sold'
+            AND treatment NOT IN ('Classic Paper', 'Classic Foil')
+            AND sold_date >= :cutoff
+        """)
+        premium_res = session.exec(premium_q, params={"cid": card_id, "cutoff": cutoff_30d}).first()
+        if premium_res:
+            premium_high = premium_res[0]
+            premium_volume = premium_res[1] or 0
+
         # Fetch Prev Close (24h ago)
         cutoff_24h = datetime.utcnow() - timedelta(hours=24)
         prev_q = text(f"""
-            SELECT price FROM marketprice 
+            SELECT price FROM marketprice
             WHERE card_id = :cid AND listing_type = 'sold' AND sold_date < :cutoff
             ORDER BY sold_date DESC LIMIT 1
         """)
         prev_res = session.exec(prev_q, params={"cid": card_id, "cutoff": cutoff_24h}).first()
         prev_close = prev_res[0] if prev_res else None
-        
+
     except Exception:
         pass
 
@@ -331,6 +399,10 @@ def read_card(
         max_price=latest_snap.max_price if latest_snap else None,
         avg_price=latest_snap.avg_price if latest_snap else None,
         vwap=vwap if vwap else (latest_snap.avg_price if latest_snap else None),
+        base_price=base_price,  # Base treatment VWAP
+        premium_high=premium_high,  # Highest premium variant
+        base_volume=base_volume,  # Base treatment volume
+        premium_volume=premium_volume,  # Premium treatment volume
         last_updated=latest_snap.timestamp if latest_snap else None # Add last_updated from snapshot
     )
     

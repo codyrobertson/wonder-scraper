@@ -10,6 +10,7 @@ class MarketSnapshotBase(BaseModel):
     lowest_ask: Optional[float] = None
     highest_bid: Optional[float] = None
     inventory: Optional[int] = None
+    treatment: Optional[str] = "All"  # Treatment tracking for Option 2
     timestamp: datetime
 
 class MarketSnapshotOut(MarketSnapshotBase):
@@ -38,7 +39,7 @@ class CardOut(CardBase):
     id: int
     rarity_name: Optional[str] = None # Added rarity_name
     # Flattened fields for easy table access
-    latest_price: Optional[float] = None 
+    latest_price: Optional[float] = None
     volume_24h: Optional[int] = None
     price_delta_24h: Optional[float] = None
     last_sale_diff: Optional[float] = None # Diff between last sale and avg price
@@ -48,7 +49,11 @@ class CardOut(CardBase):
     product_type: Optional[str] = None  # Single, Box, Pack, Proof
     max_price: Optional[float] = None  # Highest confirmed sale
     avg_price: Optional[float] = None  # Average price
-    vwap: Optional[float] = None # Volume Weighted Average Price
+    vwap: Optional[float] = None # Volume Weighted Average Price (all treatments)
+    base_price: Optional[float] = None # VWAP for base treatments only (Classic Paper/Foil)
+    premium_high: Optional[float] = None # Highest premium variant sale (Stonefoil, OCM, etc.)
+    base_volume: Optional[int] = None # Volume of base treatment sales
+    premium_volume: Optional[int] = None # Volume of premium treatment sales
     last_updated: Optional[datetime] = None # When the market data was scraped
 
 class CardWithMarket(CardOut):

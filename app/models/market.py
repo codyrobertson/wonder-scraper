@@ -5,19 +5,22 @@ from datetime import datetime
 class MarketSnapshot(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     card_id: int = Field(foreign_key="card.id", index=True)
-    
+
     # Sold Data
     min_price: float
     max_price: float
     avg_price: float
     volume: int = Field(default=0)
-    
+
     # Active Data (New)
     lowest_ask: Optional[float] = None
     highest_bid: Optional[float] = None # eBay auctions only
     inventory: Optional[int] = None # Count of active listings
     platform: str = Field(default="ebay") # 'ebay', 'opensea'
-    
+
+    # Treatment tracking (Option 2 - for future treatment-specific snapshots)
+    treatment: str = Field(default="All", index=True)  # 'All', 'Classic Paper', 'Classic Foil', 'Stonefoil', etc.
+
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 class MarketPrice(SQLModel, table=True):
