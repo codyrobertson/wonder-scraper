@@ -35,13 +35,13 @@ async def get_process_browser():
         _process_browser = await BrowserManager.get_browser()
     return _process_browser
 
-async def process_card_batch(cards_data: List[dict]):
+async def process_card_batch(cards_data: List[dict], is_backfill: bool = False):
     """Process a batch of cards using a single browser instance."""
     results = []
     try:
         # Ensure browser is ready
         await get_process_browser()
-        
+
         for i, card_data in enumerate(cards_data):
             try:
                 print(f"[Worker {os.getpid()}] Processing {i+1}/{len(cards_data)}: {card_data['name']}")
@@ -50,13 +50,14 @@ async def process_card_batch(cards_data: List[dict]):
                 # and we've initialized it in this process, it should reuse the global one if BrowserManager is designed right.
                 # However, BrowserManager._browser is a class attribute, so it is global per process.
                 # We just need to ensure we DON'T close it inside scrape_card.
-                
+
                 await scrape_card(
                     card_name=card_data['name'],
                     card_id=card_data['id'],
                     search_term=card_data['search_term'],
                     set_name=card_data['set_name'],
-                    product_type=card_data['product_type']
+                    product_type=card_data['product_type'],
+                    is_backfill=is_backfill
                 )
                 results.append(True)
             except Exception as e:
@@ -78,20 +79,23 @@ async def process_card_batch(cards_data: List[dict]):
         
     return results
 
-def worker_process_batch(cards_data: List[dict]):
+def worker_process_batch(args):
     """Wrapper to run async batch in a process."""
-    return asyncio.run(process_card_batch(cards_data))
+    cards_data, is_backfill = args
+    return asyncio.run(process_card_batch(cards_data, is_backfill=is_backfill))
 
-async def distributed_backfill(num_workers: int = 2, force_all: bool = False, limit: int = 1000):
+async def distributed_backfill(num_workers: int = 2, force_all: bool = False, limit: int = 1000, is_backfill: bool = False):
     """
     Distributed backfill using multiprocessing with batching.
-    
+
     Args:
         num_workers: Number of parallel worker processes (Default 2 for safety)
         force_all: If True, scrape all cards regardless of age
         limit: Maximum cards to process
+        is_backfill: If True, use higher page limits for historical data capture
     """
-    print(f"Starting Optimized Distributed Backfill with {num_workers} workers...")
+    mode = "HISTORICAL BACKFILL" if is_backfill else "Incremental Update"
+    print(f"Starting {mode} with {num_workers} workers...")
     
     # Fetch cards that need scraping
     with Session(engine) as session:
@@ -147,10 +151,13 @@ async def distributed_backfill(num_workers: int = 2, force_all: bool = False, li
     
     total_success = 0
     total_processed = 0
-    
+
+    # Prepare arguments for worker (each chunk needs the is_backfill flag)
+    worker_args = [(chunk, is_backfill) for chunk in chunks]
+
     # Use map to process chunks
     with mp.Pool(processes=num_workers) as pool:
-        batch_results = pool.map(worker_process_batch, chunks)
+        batch_results = pool.map(worker_process_batch, worker_args)
         
     for res in batch_results:
         total_processed += len(res)
@@ -165,10 +172,11 @@ if __name__ == "__main__":
     # Parse command line args
     num_workers = int(sys.argv[1]) if len(sys.argv) > 1 else 2 # Default to 2 for safety
     force_all = '--force' in sys.argv
+    is_backfill = '--historical' in sys.argv or '--backfill' in sys.argv
     limit = 1000
-    
+
     # Set multiprocessing start method
     mp.set_start_method('spawn', force=True)
-    
-    asyncio.run(distributed_backfill(num_workers=num_workers, force_all=force_all, limit=limit))
+
+    asyncio.run(distributed_backfill(num_workers=num_workers, force_all=force_all, limit=limit, is_backfill=is_backfill))
 
