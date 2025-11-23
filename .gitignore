@@ -50,9 +50,21 @@ pip-delete-this-directory.txt
 # Cursor
 .cursor/
 
+# Logs
 *.log
+backend.log
+frontend.log
+bulk_scrape.log
+
+# Node
 node_modules
 .vercel
+
+# Database files (we use Neon PostgreSQL exclusively)
+*.db
+*.sqlite
+*.sqlite3
+app.db
 
 # Vite HMR temp files
 frontend/vite.config.timestamp_*.js
