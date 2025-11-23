@@ -16,6 +16,7 @@ type CardDetail = {
   rarity_id: number
   rarity_name?: string
   latest_price?: number
+  vwap?: number // Volume Weighted Average Price
   volume_24h?: number
   price_delta_24h?: number
   lowest_ask?: number
@@ -61,12 +62,13 @@ function CardDetail() {
           const market = await api.get(`cards/${cardId}/market`).json<any>()
           return {
               ...basic,
-              latest_price: market.avg_price,
+              latest_price: market.vwap ?? market.avg_price ?? 0, // Use VWAP if available, fallback to avg_price
+              vwap: market.vwap,
               volume_24h: market.volume,
               lowest_ask: market.lowest_ask,
               inventory: market.inventory,
               max_price: market.max_price, // Added max_price for Highest Confirmed Sale
-              market_cap: (market.avg_price || 0) * (market.volume || 0) // Rough estimate
+              market_cap: ((market.vwap ?? market.avg_price ?? 0) * (market.volume ?? 0)) // Use VWAP for market cap
           }
       } catch (e) {
           // If market data fails (404 or 401), return basic info
@@ -347,15 +349,15 @@ function CardDetail() {
                             <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
                             Vol (USD)
                         </div>
-                        <div className="text-xl font-mono font-bold">${((card.volume_24h || 0) * (card.latest_price || 0)).toFixed(0)}</div>
+                        <div className="text-xl font-mono font-bold">${((card.volume_24h ?? 0) * (card.vwap ?? card.latest_price ?? 0)).toFixed(0)}</div>
                     </div>
                      <div className="border border-border p-4 rounded bg-card/50 hover:bg-card transition-colors">
                         <div className="text-[10px] text-muted-foreground uppercase mb-2 flex items-center gap-2">
                             <TrendingUp className="w-3 h-3" />
                             Trend (24h)
                         </div>
-                        <div className={clsx("text-xl font-mono font-bold", (card.price_delta_24h || 0) >= 0 ? "text-emerald-500" : "text-red-500")}>
-                            {(card.price_delta_24h || 0) > 0 ? '+' : ''}{(card.price_delta_24h || 0).toFixed(2)}%
+                        <div className={clsx("text-xl font-mono font-bold", (card.price_delta_24h ?? 0) >= 0 ? "text-emerald-500" : "text-red-500")}>
+                            {(card.price_delta_24h ?? 0) > 0 ? '+' : ''}{(card.price_delta_24h ?? 0).toFixed(2)}%
                         </div>
                     </div>
                 </div>

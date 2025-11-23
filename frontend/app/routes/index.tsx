@@ -143,8 +143,8 @@ function Home() {
         </button>
       ),
       cell: ({ row }) => {
-          const price = row.original.vwap || row.original.latest_price // Prefer VWAP
-          const delta = row.original.price_delta_24h || 0
+          const price = row.original.vwap ?? row.original.latest_price ?? 0 // Prefer VWAP
+          const delta = row.original.price_delta_24h ?? 0
           const isPositive = delta >= 0
           const hasPrice = price && price > 0
 
@@ -270,7 +270,7 @@ function Home() {
                         onClick={(e) => {
                             e.stopPropagation()
                             setTrackingCard(row.original)
-                            setTrackForm({ quantity: 1, purchase_price: row.original.vwap || row.original.latest_price || 0 })
+                            setTrackForm({ quantity: 1, purchase_price: row.original.vwap ?? row.original.latest_price ?? 0 })
                         }}
                         className="p-1.5 rounded border border-border hover:bg-primary hover:text-primary-foreground transition-colors group"
                         title="Add to Portfolio"
@@ -528,7 +528,7 @@ function Home() {
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground uppercase">Current Value</span>
-                  <span className="font-mono font-bold">${(trackForm.quantity * (trackingCard.vwap || trackingCard.latest_price || 0)).toFixed(2)}</span>
+                  <span className="font-mono font-bold">${(trackForm.quantity * (trackingCard.vwap ?? trackingCard.latest_price ?? 0)).toFixed(2)}</span>
                 </div>
               </div>
             </div>

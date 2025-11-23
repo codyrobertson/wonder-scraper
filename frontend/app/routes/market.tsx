@@ -141,9 +141,9 @@ function MarketAnalysis() {
               const isGood = rating < 0
               return (
                   <div className="flex justify-end">
-                      <span className={clsx("px-1.5 py-0.5 rounded text-[10px] uppercase font-bold border", 
+                      <span className={clsx("px-1.5 py-0.5 rounded text-[10px] uppercase font-bold border",
                           isGood ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-500" : "border-amber-500/50 bg-amber-500/10 text-amber-500")}>
-                          {Math.abs(rating).toFixed(1)}% {isGood ? 'UNDER' : 'OVER'}
+                          {Math.abs(rating).toFixed(2)}% {isGood ? 'UNDER' : 'OVER'}
                       </span>
                   </div>
               )
@@ -287,7 +287,7 @@ function MarketAnalysis() {
                                 <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(c.id) } })}>
                                     <div className="truncate w-24 text-xs font-bold">{c.name}</div>
                                     <div className="text-right">
-                                        <div className="text-emerald-500 text-xs font-mono font-bold">+{c.price_delta_24h.toFixed(1)}%</div>
+                                        <div className="text-emerald-500 text-xs font-mono font-bold">+{c.price_delta_24h.toFixed(2)}%</div>
                                     </div>
                                 </div>
                             ))}
@@ -305,7 +305,7 @@ function MarketAnalysis() {
                                 <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(c.id) } })}>
                                     <div className="truncate w-24 text-xs font-bold">{c.name}</div>
                                 <div className="text-right">
-                                        <div className="text-red-500 text-xs font-mono font-bold">{c.price_delta_24h.toFixed(1)}%</div>
+                                        <div className="text-red-500 text-xs font-mono font-bold">{c.price_delta_24h.toFixed(2)}%</div>
                                     </div>
                                 </div>
                             ))}

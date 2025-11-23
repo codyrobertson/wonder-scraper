@@ -146,7 +146,7 @@ function Portfolio() {
               const pct = row.original.gain_loss_percent
               return (
                   <div className={clsx("text-right font-mono text-xs", val >= 0 ? "text-emerald-500" : "text-red-500")}>
-                      {val >= 0 ? '+' : ''}{val.toFixed(2)} ({pct.toFixed(1)}%)
+                      {val >= 0 ? '+' : ''}{val.toFixed(2)} ({pct.toFixed(2)}%)
                   </div>
               )
           }
