@@ -7,6 +7,7 @@ class MarketSnapshotBase(BaseModel):
     max_price: float
     avg_price: float
     volume: int
+    vwap: Optional[float] = None  # Volume Weighted Average Price
     lowest_ask: Optional[float] = None
     highest_bid: Optional[float] = None
     inventory: Optional[int] = None

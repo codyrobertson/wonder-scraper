@@ -346,15 +346,31 @@ def read_market_data(
     session: Session = Depends(get_session),
 ) -> Any:
     """
-    Get latest market snapshot for a card.
+    Get latest market snapshot for a card with VWAP calculation.
     """
+    from sqlalchemy import text
+    from datetime import datetime, timedelta
+
     statement = select(MarketSnapshot).where(MarketSnapshot.card_id == card_id).order_by(MarketSnapshot.timestamp.desc())
     snapshot = session.exec(statement).first()
-    
+
     if not snapshot:
         raise HTTPException(status_code=404, detail="Market data not found for this card")
-        
-    return snapshot
+
+    # Calculate VWAP (30-day average of sold prices)
+    cutoff_30d = datetime.utcnow() - timedelta(days=30)
+    vwap_q = text("""
+        SELECT AVG(price) FROM marketprice
+        WHERE card_id = :cid AND listing_type = 'sold' AND sold_date >= :cutoff
+    """)
+    vwap_result = session.exec(vwap_q, params={"cid": card_id, "cutoff": cutoff_30d}).first()
+    vwap = vwap_result[0] if vwap_result and vwap_result[0] is not None else None
+
+    # Convert snapshot to dict and add VWAP
+    snapshot_dict = snapshot.model_dump()
+    snapshot_dict['vwap'] = vwap
+
+    return MarketSnapshotOut(**snapshot_dict)
 
 @router.get("/{card_id}/history", response_model=List[MarketPriceOut])
 def read_sales_history(
