@@ -157,8 +157,6 @@ async def callback_discord(code: str, session: Session = Depends(get_session)):
         token = create_access_token(user.email, expires_delta=access_token_expires)
         
         # Redirect to Frontend
-        # Assuming frontend is on localhost:3000 for dev.
-        # In production, this should be configured.
-        # For now, hardcoded to localhost:3000/auth/callback
-        frontend_url = "http://localhost:3000/auth/callback" 
+        # Using configured frontend URL
+        frontend_url = f"{settings.FRONTEND_URL}/auth/callback"
         return RedirectResponse(f"{frontend_url}?token={token}")

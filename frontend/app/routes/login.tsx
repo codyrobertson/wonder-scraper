@@ -1,6 +1,6 @@
 import { createRoute, redirect, useRouter, Link } from '@tanstack/react-router'
 import { useState } from 'react'
-import { auth } from '../utils/auth'
+import { auth, api } from '../utils/auth'
 import { Route as rootRoute } from './__root'
 
 export const Route = createRoute({
@@ -31,6 +31,15 @@ function Login() {
     }
   }
 
+  const handleDiscordLogin = async () => {
+    try {
+      const res = await api.get('auth/discord/login').json<{ url: string }>()
+      window.location.href = res.url
+    } catch (e) {
+      setError('Failed to initiate Discord login')
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-md space-y-8 p-8 border rounded bg-card">
@@ -39,6 +48,29 @@ function Login() {
             Sign in to your account
           </h2>
         </div>
+        
+        <div className="space-y-4">
+            <button
+                onClick={handleDiscordLogin}
+                type="button"
+                className="w-full flex justify-center items-center gap-2 rounded-md bg-[#5865F2] px-3 py-2 text-sm font-semibold text-white hover:bg-[#4752C4] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5865F2]"
+            >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037 3.903 3.903 0 0 0-.94 1.933 18.37 18.37 0 0 0-4.814 0 3.902 3.902 0 0 0-.94-1.933.074.074 0 0 0-.079-.037 19.79 19.79 0 0 0-4.885 1.515.074.074 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.118.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.074.074 0 0 0-.032-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.418 2.157-2.418 1.21 0 2.176 1.085 2.157 2.419 0 1.334-.956 2.419-2.157 2.419zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.418 2.157-2.418 1.21 0 2.176 1.085 2.157 2.419 0 1.334-.946 2.419-2.157 2.419z" />
+                </svg>
+                Sign in with Discord
+            </button>
+
+            <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">Or continue with email</span>
+                </div>
+            </div>
+        </div>
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="-space-y-px rounded-md shadow-sm">
             <div>

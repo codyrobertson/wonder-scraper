@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     DISCORD_CLIENT_SECRET: str = ""
     DISCORD_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/discord/callback"
     
+    # Frontend URL for redirects
+    FRONTEND_URL: str = "http://localhost:3000"
+    
     model_config = ConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 
 settings = Settings()
