@@ -3,46 +3,7 @@
 > vite
 
 
-  VITE v5.4.21  ready in 325 ms
+  VITE v5.4.21  ready in 309 ms
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: use --host to expose
-6:08:01 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:08:16 PM [vite] hmr update /app/routes/__root.tsx, /app/globals.css
-6:08:16 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:08:16 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:10:23 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:10:38 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:14:47 PM [vite] hmr update /app/globals.css
-6:15:24 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:16:08 PM [vite] hmr update /app/routes/market.tsx, /app/globals.css
-6:18:38 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:19:04 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:20:06 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:20:09 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:24:56 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-6:25:14 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-6:25:49 PM [vite] hmr update /app/routes/__root.tsx, /app/globals.css
-6:25:54 PM [vite] hmr update /app/routes/__root.tsx, /app/globals.css
-6:26:47 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:27:24 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:29:14 PM [vite] hmr update /app/routes/market.tsx, /app/globals.css
-6:29:39 PM [vite] hmr update /app/routes/market.tsx, /app/globals.css
-6:29:40 PM [vite] hmr update /app/routes/market.tsx, /app/globals.css
-6:32:47 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:33:17 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:35:48 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:36:00 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:36:00 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-6:36:24 PM [vite] hmr update /app/routes/index.tsx, /app/globals.css
-7:35:53 PM [vite] vite.config.ts changed, restarting server...
-Re-optimizing dependencies because vite config has changed
-7:35:53 PM [vite] server restarted.
-7:36:26 PM [vite] vite.config.ts changed, restarting server...
-Re-optimizing dependencies because lockfile has changed
-7:36:26 PM [vite] server restarted.
-7:38:00 PM [vite] vite.config.ts changed, restarting server...
-7:38:00 PM [vite] server restarted.
-7:38:23 PM [vite] vite.config.ts changed, restarting server...
-7:38:24 PM [vite] vite.config.ts changed, restarting server...
-7:38:24 PM [vite] server restarted.
