@@ -19,3 +19,44 @@ INFO:     127.0.0.1:60752 - "OPTIONS /api/v1/cards?limit=500&time_period=24h&pro
 INFO:     127.0.0.1:60752 - "GET /api/v1/cards?limit=500&time_period=24h&product_type=Pack HTTP/1.1" 307 Temporary Redirect
 INFO:     127.0.0.1:60752 - "OPTIONS /api/v1/cards/?limit=500&time_period=24h&product_type=Pack HTTP/1.1" 200 OK
 INFO:     127.0.0.1:60752 - "GET /api/v1/cards/?limit=500&time_period=24h&product_type=Pack HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/scrape_card.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [58255]
+INFO:     Started server process [73479]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+✅ Scheduler started. Job 'job_update_market_data' registered (30m interval).
+INFO:     127.0.0.1:61752 - "GET /api/v1/users/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61752 - "GET /api/v1/cards?limit=500&time_period=24h HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:61752 - "GET /api/v1/cards/?limit=500&time_period=24h HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61752 - "OPTIONS /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61760 - "OPTIONS /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61752 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61752 - "OPTIONS /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61760 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61760 - "OPTIONS /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61760 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61752 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62601 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62602 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62601 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62602 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62779 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62781 - "GET /api/v1/users/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:62780 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62779 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62780 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62871 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62872 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62871 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62872 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62985 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62986 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62985 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62986 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63142 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63143 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63142 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63143 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK

@@ -7,3 +7,8 @@
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: use --host to expose
+7:49:04 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
+7:49:28 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
+7:49:38 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
+7:49:38 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
+7:50:15 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
