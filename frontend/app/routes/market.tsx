@@ -228,8 +228,8 @@ function MarketAnalysis() {
                             <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-2 text-emerald-500">
                                 <ArrowUp className="w-3 h-3" /> Top Gainers
                             </span>
-                        </div>
-                        <div className="divide-y divide-border/50">
+                    </div>
+                    <div className="divide-y divide-border/50">
                             {topGainers.slice(0, 5).map(c => (
                                 <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(c.id) } })}>
                                     <div className="truncate w-24 text-xs font-bold">{c.name}</div>
@@ -251,12 +251,12 @@ function MarketAnalysis() {
                             {topLosers.slice(0, 5).map(c => (
                                 <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(c.id) } })}>
                                     <div className="truncate w-24 text-xs font-bold">{c.name}</div>
-                                    <div className="text-right">
+                                <div className="text-right">
                                         <div className="text-red-500 text-xs font-mono font-bold">{c.price_delta_24h.toFixed(1)}%</div>
                                     </div>
                                 </div>
                             ))}
-                        </div>
+                            </div>
                     </div>
                 </div>
 

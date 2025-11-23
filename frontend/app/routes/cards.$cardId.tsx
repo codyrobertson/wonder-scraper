@@ -200,7 +200,7 @@ function CardDetail() {
               timestamp: saleDate.getTime(),
               x: index,  // Sequential index for X-axis
               price: Number(h.price), // Ensure numeric price
-              treatment: h.treatment || 'Classic Paper',
+            treatment: h.treatment || 'Classic Paper',
               title: h.title,
               listing_type: h.listing_type
           }
@@ -405,27 +405,27 @@ function CardDetail() {
                                                     shape="circle"
                                                 >
                                                     {chartData.map((entry, index) => {
-                                                        const treatmentColors: Record<string, string> = {
-                                                            'Classic Paper': '#6b7280',      // Gray
-                                                            'Classic Foil': '#3b82f6',       // Blue
-                                                            'Stonefoil': '#8b5cf6',          // Purple
-                                                            'Formless Foil': '#ec4899',      // Pink
-                                                            'OCM Serialized': '#f59e0b',     // Amber/Gold
-                                                            'Prerelease': '#14b8a6',         // Teal
-                                                            'Promo': '#f97316',              // Orange
-                                                            'Proof/Sample': '#ef4444',       // Red
-                                                            'Error/Errata': '#dc2626',       // Dark Red
-                                                        }
+                                                    const treatmentColors: Record<string, string> = {
+                                                        'Classic Paper': '#6b7280',      // Gray
+                                                        'Classic Foil': '#3b82f6',       // Blue
+                                                        'Stonefoil': '#8b5cf6',          // Purple
+                                                        'Formless Foil': '#ec4899',      // Pink
+                                                        'OCM Serialized': '#f59e0b',     // Amber/Gold
+                                                        'Prerelease': '#14b8a6',         // Teal
+                                                        'Promo': '#f97316',              // Orange
+                                                        'Proof/Sample': '#ef4444',       // Red
+                                                        'Error/Errata': '#dc2626',       // Dark Red
+                                                    }
                                                         const color = treatmentColors[entry.treatment] || '#10b981'
-                                                        
-                                                        return (
+                                                    
+                                                    return (
                                                             <Cell 
                                                                 key={`cell-${index}`} 
-                                                                fill={color} 
+                                                            fill={color}
                                                                 fillOpacity={0.7}
-                                                            />
-                                                        )
-                                                    })}
+                                                        />
+                                                    )
+                                                })}
                                                 </Scatter>
                                             </ScatterChart>
                                         </ResponsiveContainer>
