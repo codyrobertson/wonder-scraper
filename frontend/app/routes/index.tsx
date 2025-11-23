@@ -355,7 +355,7 @@ function Home() {
                     
                     {/* Filters & Controls inside Header */}
                     <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 md:gap-4 w-full">
-                        <div className="relative w-full sm:w-64">
+                        <div className="relative w-full flex-1">
                              <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-muted-foreground" />
                              <input 
                                 type="text" 
@@ -366,7 +366,7 @@ function Home() {
                              />
                         </div>
                         
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                             <select 
                                 className="flex-1 sm:flex-none bg-background px-3 py-1.5 rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary uppercase font-mono cursor-pointer hover:bg-muted transition-colors"
                                 value={productType}

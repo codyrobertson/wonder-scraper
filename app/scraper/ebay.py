@@ -230,7 +230,7 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
         treatment = _detect_treatment(title)
         bid_count = _extract_bid_count(item)
         item_id, url = _extract_item_details(item)
-        
+
         # Extract Image URL
         image_elem = item.select_one(".s-item__image-img")
         image_url = None

@@ -1,12 +1,13 @@
 
 > wonder-scraper-ui@0.0.0 dev
-> vite
+> npm run clean:temp && vite
 
 
-  VITE v5.4.21  ready in 498 ms
+> wonder-scraper-ui@0.0.0 clean:temp
+> rm -f vite.config.timestamp_*.js app.config.timestamp_*.js
+
+
+  VITE v5.4.21  ready in 413 ms
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: use --host to expose
-8:22:30 PM [vite] hmr update /app/routes/__root.tsx, /app/globals.css
-8:22:40 PM [vite] hmr update /app/routes/__root.tsx, /app/globals.css
-8:23:07 PM [vite] hmr update /app/routes/__root.tsx, /app/globals.css
