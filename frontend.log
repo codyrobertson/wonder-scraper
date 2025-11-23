@@ -3,26 +3,9 @@
 > vite
 
 
-  VITE v5.4.21  ready in 309 ms
+  VITE v5.4.21  ready in 498 ms
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: use --host to expose
-7:49:04 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:49:28 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:49:38 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:49:38 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:50:15 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:51:09 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:51:27 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:53:13 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:53:45 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:54:06 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:54:44 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:54:56 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:55:13 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:57:24 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:57:44 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:58:07 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-7:58:25 PM [vite] hmr update /app/routes/cards.$cardId.tsx, /app/globals.css
-8:19:21 PM [vite] hmr update /app/routes/login.tsx, /app/globals.css
-8:19:28 PM [vite] hmr update /app/routes/login.tsx, /app/globals.css
+8:22:30 PM [vite] hmr update /app/routes/__root.tsx, /app/globals.css
+8:22:40 PM [vite] hmr update /app/routes/__root.tsx, /app/globals.css
