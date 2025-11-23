@@ -60,3 +60,7 @@ INFO:     127.0.0.1:63142 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63143 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63142 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63143 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63353 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63353 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63354 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63354 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
