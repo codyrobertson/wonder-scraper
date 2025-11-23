@@ -82,3 +82,15 @@ INFO:     127.0.0.1:63720 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63721 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63720 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63721 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63782 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63783 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63782 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63783 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63890 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63890 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63891 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63891 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63922 - "GET /api/v1/cards/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63922 - "GET /api/v1/cards/1/market HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63923 - "GET /api/v1/cards/1/history?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63923 - "GET /api/v1/cards/1/active?limit=50 HTTP/1.1" 200 OK
