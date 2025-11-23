@@ -19,15 +19,22 @@ app = FastAPI(
 )
 
 # Set all CORS enabled origins
+origins = [
+    "http://localhost:5173", # Vite default
+    "http://localhost:3000", # React default
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "https://wonderstracker.com", # Production
+    "https://wonderstrader.com", # Production (Correction)
+    settings.FRONTEND_URL, # Dynamic from env
+]
+
+# Clean up duplicates and empty strings
+origins = list(set([o for o in origins if o]))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", # Vite default
-        "http://localhost:3000", # React default
-        "http://127.0.0.1:5173",
-        "https://wonderstracker.com", # Production
-        "*" # Fallback
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
