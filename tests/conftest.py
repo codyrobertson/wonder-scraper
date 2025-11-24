@@ -75,15 +75,15 @@ def test_card_fixture(session: Session, test_rarity: Rarity):
 
 @pytest.fixture(name="test_prices")
 def test_prices_fixture(session: Session, test_card: Card):
-    """Create test price data spanning 30 days."""
+    """Create test price data spanning 40 days (to support 30d delta calculations)."""
     now = datetime.utcnow()
     prices = []
 
-    # Create 30 days of price data
-    for i in range(30):
-        date = now - timedelta(days=29 - i)
+    # Create 40 days of price data (so 30d delta can find prices before cutoff)
+    for i in range(40):
+        date = now - timedelta(days=39 - i)
         # Price trends upward from $10 to $30
-        base_price = 10 + (i * 0.67)
+        base_price = 10 + (i * 0.5)
 
         # Add some variation
         for j in range(3):  # 3 sales per day

@@ -308,7 +308,7 @@ def read_time_series(
 def read_bid_ask_spreads(
     session: Session = Depends(get_session),
     product_type: str = Query(default="Single"),
-    limit: int = Query(default=50, le=200),
+    limit: int = Query(default=50, ge=1, le=200),
 ) -> Any:
     """
     Get current bid/ask spreads and price-to-sale ratios.
