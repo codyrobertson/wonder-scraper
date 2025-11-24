@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any
 from openai import OpenAI
 import json
 import re
+import os
 
 
 class AIListingExtractor:
@@ -21,7 +22,7 @@ class AIListingExtractor:
         """Initialize OpenRouter client with GPT-5-nano."""
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key="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"
+            api_key=os.getenv("OPENROUTER_API_KEY")
         )
         self.model = "openai/gpt-5-nano"
 
