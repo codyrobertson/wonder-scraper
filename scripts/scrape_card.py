@@ -14,84 +14,52 @@ from app.scraper.browser import BrowserManager
 from app.scraper.active import scrape_active_data
 
 async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", search_term: Optional[str] = None, set_name: str = "", product_type: str = "Single", max_pages: int = 3, is_backfill: bool = False):
-    # If no search_term provided, default to card_name
-    initial_query = search_term if search_term else card_name
-    
-    # Generate search variations to ensure we find results
-    queries = [initial_query]
-    
-    # Logic based on Product Type
+    """
+    Scrape eBay for a card with OPTIMIZED query generation.
+
+    Strategy: Use 1-2 targeted queries instead of 8+ variations.
+    - Primary: "Wonders of the First [card_name]" - specific, filters non-Wonders
+    - Fallback: "[card_name] Existence" - catches abbreviated listings
+    """
+
+    # Build optimized query list (max 2-3 queries)
+    unique_queries = []
+
+    # ALWAYS include "Wonders of the First" to filter out non-Wonders products
+    primary_query = f"Wonders of the First {card_name}"
+    unique_queries.append(primary_query)
+
+    # Add product-type specific fallback
     if product_type == "Box":
-        # For boxes, ensure we include "Wonders of the First" to avoid matching Pokemon/MTG boxes
-        if "box" not in initial_query.lower():
-            queries.append(f"{card_name} Box")
-
-        # Add Wonders of the First variations to filter for WoTF products specifically
-        if "wonders" not in initial_query.lower():
-            queries.append(f"Wonders of the First {card_name}")
-            queries.append(f"Wonders of the First {card_name} Sealed")
-            queries.append(f"Wonders of the First {card_name} TCG")
-
-        # Standard box variations (with card_name which should already contain "Existence" or "Wonders")
-        queries.append(f"{card_name} Sealed")
-        queries.append(f"{card_name} Collector Box")
-        queries.append(f"{card_name} Booster Box")
+        # For boxes, also try with "Existence" set name
+        unique_queries.append(f"Wonders of the First Existence {card_name}")
 
     elif product_type == "Pack":
-        # For packs, add "Wonders of the First" prefix to ensure we find WoTF packs
-        if "pack" not in initial_query.lower():
-            queries.append(f"{card_name} Pack")
+        unique_queries.append(f"Wonders of the First Booster Pack")
 
-        # Add Wonders of the First variations
-        if "wonders" not in initial_query.lower():
-            queries.append(f"Wonders of the First {card_name}")
-            queries.append(f"Wonders of the First Booster Pack")
-            queries.append(f"Wonders of the First Pack")
-            queries.append(f"Wonders of the First TCG Pack")
-
-        # Standard pack variations
-        queries.append(f"{card_name} Booster Pack")
-        queries.append(f"{card_name} Sealed Pack")
-        
     elif product_type == "Lot":
-        # For lots, we want to capture bundles, collections, and bulk sales
-        if "lot" not in initial_query.lower():
-            queries.append(f"{card_name} Lot")
-        queries.append(f"{card_name} Bundle")
-        queries.append(f"{card_name} Collection")
-        queries.append(f"{card_name} Bulk")
-        queries.append(f"{card_name} Mixed Lot")
-        
-    elif product_type == "Proof":
-        # For proofs and samples
-        if "proof" not in initial_query.lower() and "sample" not in initial_query.lower():
-            queries.append(f"{card_name} Proof")
-        queries.append(f"{card_name} Sample")
-        queries.append(f"{card_name} Prototype")
-        
-    else:
-        # Standard Single Card Logic
-        # 1. Card name alone (captures sellers who just use card name)
-        # "The First" is too generic and would match many irrelevant items
-        if card_name.lower() != "the first":
-            queries.append(card_name)
-        
-        if "wonders" not in initial_query.lower():
-            queries.append(f"Wonders of the First {card_name}")
-            queries.append(f"Wonders of the First {card_name} TCG")
-            queries.append(f"Wonders of the First {card_name} CCG")
-            queries.append(f"Wonders of the First Existence {card_name}")
-            
-        if set_name and set_name.lower() not in initial_query.lower():
-             queries.append(f"{card_name} {set_name}")
+        # For lots, search more broadly but still with Wonders prefix
+        unique_queries.append(f"Wonders of the First Lot")
+        unique_queries.append(f"Wonders of the First Bundle")
 
-    # Deduplicate queries (preserve order)
-    seen_queries = set()
-    unique_queries = []
-    for q in queries:
-        if q.lower() not in seen_queries:
-            unique_queries.append(q)
-            seen_queries.add(q.lower())
+    elif product_type == "Proof":
+        unique_queries.append(f"Wonders of the First Proof")
+
+    else:
+        # Single cards - add Existence set search
+        unique_queries.append(f"Wonders of the First Existence {card_name}")
+        # For very specific cards, add rarity if available
+        if rarity_name and rarity_name.lower() not in ['common', 'uncommon']:
+            unique_queries.append(f"{card_name} {rarity_name} Wonders")
+
+    # Deduplicate (case-insensitive)
+    seen = set()
+    deduped = []
+    for q in unique_queries:
+        if q.lower() not in seen:
+            deduped.append(q)
+            seen.add(q.lower())
+    unique_queries = deduped
             
     # Override max_pages for historical backfills to capture more data
     if is_backfill and max_pages < 15:
@@ -165,10 +133,12 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", s
             
         print(f"Found {len(query_prices)} new results with '{query}'. Total unique: {len(all_prices)}")
 
-        # If we found a good amount of data (e.g. > 20), we can probably stop trying variations
-        # unless it's a very high volume card or we're in backfill mode.
-        if not is_backfill and len(all_prices) > 20:
-            print("Sufficient data found, stopping search variations.")
+        # Early stopping: If we have enough data, stop trying more queries
+        # Threshold based on product type (singles need less, boxes need more variety)
+        min_results = 5 if product_type == "Single" else 10
+
+        if not is_backfill and len(all_prices) >= min_results:
+            print(f"✓ Sufficient data ({len(all_prices)} results), skipping remaining queries.")
             break
             
     prices = all_prices
