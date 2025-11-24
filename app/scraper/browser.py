@@ -19,17 +19,30 @@ class BrowserManager:
                 
             opts = ChromiumOptions()
             opts.headless = True
-            
+
             # CRITICAL: Increase Pydoll's internal start timeout (default is only 10s)
-            opts.start_timeout = 60  # Give it a full minute to start
-            
-            # Stealth args
-            opts.add_argument("--disable-blink-features=AutomationControlled")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-infobars")
-            opts.add_argument("--disable-dev-shm-usage")
+            opts.start_timeout = 120  # Give it 2 minutes to start in container
+
+            # Container/server-specific args (critical for Railway/Docker)
+            opts.add_argument("--headless=new")  # New headless mode for Chrome 109+
+            opts.add_argument("--no-sandbox")  # Required for root in containers
+            opts.add_argument("--disable-setuid-sandbox")
+            opts.add_argument("--disable-dev-shm-usage")  # Overcome limited /dev/shm
             opts.add_argument("--disable-gpu")
             opts.add_argument("--disable-software-rasterizer")
+            opts.add_argument("--single-process")  # Run in single process mode
+            opts.add_argument("--no-zygote")  # Disable zygote process
+            opts.add_argument("--disable-background-timer-throttling")
+            opts.add_argument("--disable-backgrounding-occluded-windows")
+            opts.add_argument("--disable-renderer-backgrounding")
+
+            # Memory/stability args
+            opts.add_argument("--memory-pressure-off")
+            opts.add_argument("--max_old_space_size=4096")
+
+            # Stealth args
+            opts.add_argument("--disable-blink-features=AutomationControlled")
+            opts.add_argument("--disable-infobars")
             opts.add_argument("--disable-extensions")
             
             # Mimic a real browser UA
