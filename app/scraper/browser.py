@@ -35,17 +35,32 @@ class BrowserManager:
             # Mimic a real browser UA
             opts.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             
-            # Try to find Chrome binary explicitly (macOS paths)
+            # Try to find Chrome/Chromium binary explicitly
             import os
+            import shutil
+
             chrome_paths = [
+                # Linux paths (Railway/Docker)
+                "/usr/bin/chromium-browser",
+                "/usr/bin/chromium",
+                "/usr/bin/google-chrome",
+                "/usr/bin/google-chrome-stable",
+                # Nix paths (Railway Nixpacks)
+                shutil.which("chromium-browser"),
+                shutil.which("chromium"),
+                shutil.which("google-chrome"),
+                # macOS paths
                 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
                 "/Applications/Chromium.app/Contents/MacOS/Chromium",
             ]
+
             for path in chrome_paths:
-                if os.path.exists(path):
+                if path and os.path.exists(path):
                     opts.binary_location = path
                     print(f"Using Chrome at: {path}")
                     break
+            else:
+                print("WARNING: No Chrome/Chromium binary found in standard paths")
             
             print("Starting new browser instance (this may take up to 60 seconds)...")
             cls._browser = Chrome(options=opts)
