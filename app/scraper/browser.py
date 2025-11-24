@@ -7,71 +7,67 @@ import os
 class BrowserManager:
     _playwright = None
     _browser: Optional[Browser] = None
-    _context: Optional[BrowserContext] = None
+    _lock = asyncio.Lock()
     _restart_count: int = 0
     _max_restarts: int = 3
 
     @classmethod
     async def get_browser(cls) -> Browser:
-        if not cls._browser:
-            print("Starting Playwright browser...")
+        async with cls._lock:
+            if not cls._browser or not cls._browser.is_connected():
+                print("Starting Playwright browser...")
 
-            cls._playwright = await async_playwright().start()
+                if cls._playwright:
+                    try:
+                        await cls._playwright.stop()
+                    except:
+                        pass
 
-            # Launch args optimized for containers
-            launch_args = [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-software-rasterizer",
-                "--single-process",
-                "--no-zygote",
-            ]
+                cls._playwright = await async_playwright().start()
 
-            cls._browser = await cls._playwright.chromium.launch(
-                headless=True,
-                args=launch_args,
-            )
+                # Launch args optimized for containers
+                launch_args = [
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                ]
 
-            # Create a context with stealth settings
-            cls._context = await cls._browser.new_context(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                viewport={"width": 1920, "height": 1080},
-                java_script_enabled=True,
-            )
+                cls._browser = await cls._playwright.chromium.launch(
+                    headless=True,
+                    args=launch_args,
+                )
 
-            print("Playwright browser started successfully!")
-        return cls._browser
+                print("Playwright browser started successfully!")
+            return cls._browser
 
     @classmethod
-    async def get_context(cls) -> BrowserContext:
-        if not cls._context:
-            await cls.get_browser()
-        return cls._context
+    async def new_context(cls) -> BrowserContext:
+        """Create a new isolated context for each scrape"""
+        browser = await cls.get_browser()
+        return await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
+            java_script_enabled=True,
+        )
 
     @classmethod
     async def close(cls):
-        if cls._context:
-            try:
-                await cls._context.close()
-            except Exception as e:
-                print(f"Error closing context: {e}")
-            cls._context = None
+        async with cls._lock:
+            if cls._browser:
+                try:
+                    await cls._browser.close()
+                except Exception as e:
+                    print(f"Error closing browser: {e}")
+                cls._browser = None
 
-        if cls._browser:
-            try:
-                await cls._browser.close()
-            except Exception as e:
-                print(f"Error closing browser: {e}")
-            cls._browser = None
-
-        if cls._playwright:
-            try:
-                await cls._playwright.stop()
-            except Exception as e:
-                print(f"Error stopping playwright: {e}")
-            cls._playwright = None
+            if cls._playwright:
+                try:
+                    await cls._playwright.stop()
+                except Exception as e:
+                    print(f"Error stopping playwright: {e}")
+                cls._playwright = None
 
     @classmethod
     async def restart(cls):
@@ -92,31 +88,30 @@ class BrowserManager:
 async def get_page_content(url: str, retries: int = 3) -> str:
     """
     Navigates to a URL and returns the HTML content.
-    Uses Playwright for reliable browser automation.
+    Uses Playwright with isolated context per request for concurrency safety.
     """
     last_error = None
 
     for attempt in range(retries + 1):
+        context = None
+        page = None
         try:
-            context = await BrowserManager.get_context()
+            # Create isolated context for this request
+            context = await BrowserManager.new_context()
             page = await context.new_page()
 
-            try:
-                # Navigate with timeout
-                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            # Navigate with timeout
+            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
-                # Wait for content to load
-                await page.wait_for_timeout(2000)
+            # Wait for content to load
+            await page.wait_for_timeout(2000)
 
-                content = await page.content()
+            content = await page.content()
 
-                if not content or len(content) < 100:
-                    raise Exception("Empty or invalid page content received")
+            if not content or len(content) < 100:
+                raise Exception("Empty or invalid page content received")
 
-                return content
-
-            finally:
-                await page.close()
+            return content
 
         except Exception as e:
             last_error = e
@@ -125,9 +120,9 @@ async def get_page_content(url: str, retries: int = 3) -> str:
             print(f"  Type: {type(e).__name__}")
             print(f"  Message: {e}")
 
-            # If it's a connection/timeout error, restart browser
-            if any(keyword in error_msg for keyword in ["timeout", "connection", "target closed", "browser", "context"]):
-                print("Detected browser issue. Restarting browser...")
+            # If it's a browser-level error, restart
+            if any(keyword in error_msg for keyword in ["browser has been closed", "browser.newcontext"]):
+                print("Detected browser crash. Restarting browser...")
                 await BrowserManager.restart()
                 await asyncio.sleep(2)
             else:
@@ -136,5 +131,18 @@ async def get_page_content(url: str, retries: int = 3) -> str:
             if attempt == retries:
                 print(f"Failed after {retries + 1} attempts: {last_error}")
                 raise last_error
+
+        finally:
+            # Always clean up context
+            if page:
+                try:
+                    await page.close()
+                except:
+                    pass
+            if context:
+                try:
+                    await context.close()
+                except:
+                    pass
 
     raise last_error
