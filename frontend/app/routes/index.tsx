@@ -143,6 +143,12 @@ function Home() {
           <ArrowUpDown className="h-3 w-3" />
         </button>
       ),
+      sortingFn: (rowA, rowB, columnId) => {
+        // Use same fallback logic as display: vwap -> latest_price -> 0
+        const priceA = rowA.original.vwap ?? rowA.original.latest_price ?? 0
+        const priceB = rowB.original.vwap ?? rowB.original.latest_price ?? 0
+        return priceA - priceB
+      },
       cell: ({ row }) => {
           const price = row.original.vwap ?? row.original.latest_price ?? 0 // Prefer VWAP
           const delta = row.original.price_delta_24h ?? 0
@@ -378,6 +384,9 @@ function Home() {
                             >
                                 <option value="all">All Types</option>
                                 <option value="Single">Singles</option>
+                                <option value="Box">Boxes</option>
+                                <option value="Pack">Packs</option>
+                                <option value="Lot">Lots</option>
                                 <option value="Proof">Proofs</option>
                             </select>
 
