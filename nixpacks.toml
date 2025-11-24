@@ -1,0 +1,6 @@
+[phases.setup]
+nixPkgs = ["python3", "postgresql_16.dev", "gcc", "chromium", "chromium.sandbox"]
+
+[variables]
+CHROME_BIN = "/nix/store/chromium/bin/chromium"
+CHROMIUM_PATH = "/usr/bin/chromium-browser"
