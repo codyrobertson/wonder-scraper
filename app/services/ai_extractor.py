@@ -20,11 +20,17 @@ class AIListingExtractor:
 
     def __init__(self):
         """Initialize OpenRouter client with GPT-5-nano."""
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.getenv("OPENROUTER_API_KEY")
-        )
-        self.model = "openai/gpt-5-nano"
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            print("WARNING: OPENROUTER_API_KEY not set, AI extraction will fallback to rule-based")
+            self.client = None
+            self.model = None
+        else:
+            self.client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=api_key
+            )
+            self.model = "openai/gpt-5-nano"
 
     def extract_listing_data(
         self,
@@ -48,6 +54,10 @@ class AIListingExtractor:
                 - treatment: str (Classic Paper, Foil, etc.)
                 - confidence: float (0-1, extraction confidence)
         """
+        # If no API key configured, use fallback immediately
+        if not self.client:
+            return self._fallback_extraction(title, description)
+
         prompt = self._build_extraction_prompt(title, description, price)
 
         try:
