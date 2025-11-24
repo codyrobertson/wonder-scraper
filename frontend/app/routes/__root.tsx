@@ -1,5 +1,5 @@
 import { Outlet, createRootRoute, Link, useNavigate } from '@tanstack/react-router'
-import { LayoutDashboard, LineChart, Wallet, Settings, User, Server, LogOut } from 'lucide-react'
+import { LayoutDashboard, LineChart, Wallet, Settings, User, Server, LogOut, Menu, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api, auth } from '../utils/auth'
 import { useState, useMemo } from 'react'
@@ -26,6 +26,7 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   const navigate = useNavigate()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { data: user } = useQuery({
       queryKey: ['me'],
       queryFn: async () => {
@@ -78,7 +79,16 @@ function RootComponent() {
       <div className="min-h-screen bg-background text-foreground antialiased font-mono flex flex-col">
         {/* Top Header Navigation */}
         <div className="h-14 border-b border-border sticky top-0 bg-background z-50 flex items-center px-4 justify-between">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
+            {/* Mobile Hamburger */}
+            <button
+              className="md:hidden p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+
             <h1 className="text-lg font-bold tracking-tight uppercase flex items-center gap-2">
               WondersTracker
               <span className="text-[9px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">BETA</span>
@@ -141,6 +151,72 @@ function RootComponent() {
             )}
           </div>
         </div>
+
+        {/* Mobile Menu Panel */}
+        {mobileMenuOpen && (
+          <div className="md:hidden absolute top-14 left-0 right-0 bg-background border-b border-border z-50 shadow-lg">
+            <nav className="flex flex-col p-4 gap-2">
+              <Link
+                to="/"
+                className="flex items-center gap-3 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors text-sm font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Dashboard</span>
+              </Link>
+              <Link
+                to="/market"
+                className="flex items-center gap-3 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors text-sm font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <LineChart className="w-4 h-4" />
+                <span>Market</span>
+              </Link>
+              {user && (
+                <>
+                  <Link
+                    to="/portfolio"
+                    className="flex items-center gap-3 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors text-sm font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Wallet className="w-4 h-4" />
+                    <span>Portfolio</span>
+                  </Link>
+                  <Link
+                    to="/profile"
+                    className="flex items-center gap-3 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors text-sm font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <User className="w-4 h-4" />
+                    <span>Profile</span>
+                  </Link>
+                </>
+              )}
+              {!user && (
+                <Link
+                  to="/login"
+                  className="flex items-center gap-3 px-3 py-2.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors text-sm font-bold uppercase"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <User className="w-4 h-4" />
+                  <span>Login</span>
+                </Link>
+              )}
+              {user && (
+                <button
+                  onClick={() => {
+                    auth.logout()
+                    setMobileMenuOpen(false)
+                  }}
+                  className="flex items-center gap-3 px-3 py-2.5 text-red-500 hover:bg-red-500/10 rounded-md transition-colors text-sm font-bold uppercase w-full text-left"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Logout</span>
+                </button>
+              )}
+            </nav>
+          </div>
+        )}
 
         {/* Market Pulse Marquee - Persistent across all pages */}
         <div className="border-b border-border bg-muted/10 overflow-hidden flex items-center h-8 sticky top-14 z-40">

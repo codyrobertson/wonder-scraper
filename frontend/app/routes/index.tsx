@@ -23,6 +23,7 @@ type Card = {
   volume_usd_24h?: number // New field for dollar volume
   product_type?: string // Single, Box, Pack, Proof
   max_price?: number // Highest confirmed sale
+  last_sale_treatment?: string // Treatment/variant of last sale
 }
 
 type UserProfile = {
@@ -118,15 +119,18 @@ function Home() {
       },
       cell: ({ row }) => {
         const productType = row.original.product_type || 'Single'
+        const showBadge = productType !== 'Single' // Only show badge for non-singles
         return (
-          <div className="max-w-[150px] md:max-w-none truncate">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-foreground truncate" title={row.getValue('name')}>{row.getValue('name')}</span>
-                <span className="hidden md:inline-flex px-1.5 py-0.5 rounded text-[8px] uppercase font-semibold bg-muted/30 text-muted-foreground border border-border">
-                  {productType}
-                </span>
+          <div className="max-w-[180px] md:max-w-none">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-foreground truncate text-sm" title={row.getValue('name')}>{row.getValue('name')}</span>
+                {showBadge && (
+                  <span className="shrink-0 px-1 py-0.5 rounded text-[7px] uppercase font-bold bg-primary/20 text-primary border border-primary/30">
+                    {productType}
+                  </span>
+                )}
               </div>
-              <div className="text-xs text-muted-foreground uppercase truncate">{row.original.set_name}</div>
+              <div className="text-[10px] text-muted-foreground/70 uppercase truncate">{row.original.set_name}</div>
           </div>
         )
       },
@@ -149,25 +153,20 @@ function Home() {
           const hasPrice = price && price > 0
 
           return (
-            <div className="text-right">
-                <div className="font-mono text-base">
+            <div className="text-right flex items-center justify-end gap-2">
+                <span className="font-mono text-sm font-semibold">
                     {hasPrice ? `$${price.toFixed(2)}` : '---'}
-                </div>
-                {hasPrice ? (
-                    delta !== 0 ? (
-                        <div className={clsx(
-                            "text-xs font-mono flex items-center justify-end gap-1",
-                            isPositive ? "text-emerald-500" : "text-red-500"
-                        )}>
-                            {isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                            {Math.abs(delta).toFixed(2)}%
-                        </div>
-                    ) : (
-                        <div className="text-xs font-mono flex items-center justify-end gap-1 text-muted-foreground/50">
-                            <span>0.00%</span>
-                        </div>
-                    )
-                ) : null}
+                </span>
+                {hasPrice && (
+                    <span className={clsx(
+                        "text-[10px] font-mono px-1 py-0.5 rounded",
+                        delta > 0 ? "text-emerald-400 bg-emerald-500/10" :
+                        delta < 0 ? "text-red-400 bg-red-500/10" :
+                        "text-muted-foreground/50"
+                    )}>
+                        {delta > 0 ? '+' : ''}{delta.toFixed(1)}%
+                    </span>
+                )}
             </div>
           )
       }
@@ -179,101 +178,143 @@ function Home() {
             className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Vol (Units)
+            Vol
             <ArrowUpDown className="h-3 w-3" />
           </button>
         ),
         cell: ({ row }) => {
             const vol = row.original.volume_24h || 0
-            // Improved Contrast Badges
-            let badgeClass = "bg-zinc-800 text-zinc-300 border-zinc-700" // Low/Gray
-            if (vol > 30) badgeClass = "bg-emerald-700 text-emerald-50 border-emerald-600 font-bold" // Updated to solid colors
-            else if (vol > 10) badgeClass = "bg-amber-700 text-amber-50 border-amber-600 font-bold" // Updated to solid colors
-            else if (vol === 0) badgeClass = "bg-red-700 text-red-50 border-red-600 opacity-50" // Updated to solid colors
+            // Chevron indicators based on volume thresholds
+            let chevrons = ''
+            let colorClass = 'text-muted-foreground'
+            if (vol >= 30) {
+                chevrons = '▲▲'
+                colorClass = 'text-emerald-500'
+            } else if (vol >= 10) {
+                chevrons = '▲'
+                colorClass = 'text-emerald-400'
+            } else if (vol > 0 && vol < 3) {
+                chevrons = '▼'
+                colorClass = 'text-red-400'
+            } else if (vol === 0) {
+                chevrons = '▼▼'
+                colorClass = 'text-red-500'
+            }
 
             return (
-                <div className="flex justify-end">
-                    <span className={clsx("px-2 py-0.5 rounded border font-mono text-xs shadow-sm", badgeClass)}>
-                        {vol}
-                    </span>
+                <div className="flex items-center justify-end gap-1 font-mono text-sm">
+                    <span>{vol}</span>
+                    {chevrons && <span className={clsx("text-[10px]", colorClass)}>{chevrons}</span>}
                 </div>
             )
         }
     },
     {
-        accessorKey: 'volume_usd_24h', // New column for dollar volume
+        accessorKey: 'latest_price',
+        header: ({ column }) => (
+          <button
+            className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Last Sale
+            <ArrowUpDown className="h-3 w-3" />
+          </button>
+        ),
+        cell: ({ row }) => {
+            const price = row.original.latest_price || 0
+            const treatment = (row.original as any).last_sale_treatment || ''
+            return (
+                <div className="flex flex-col items-end">
+                    <span className="font-mono text-sm">{price > 0 ? `$${price.toFixed(2)}` : '---'}</span>
+                    {treatment && <span className="text-[9px] text-muted-foreground">{treatment}</span>}
+                </div>
+            )
+        }
+    },
+    {
+        accessorKey: 'max_price',
         header: ({ column }) => (
           <button
             className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Vol ($)
+            High
             <ArrowUpDown className="h-3 w-3" />
           </button>
         ),
         cell: ({ row }) => {
-            const volUsd = row.original.volume_usd_24h || 0
-            return (
-                <div className="hidden md:block text-right font-mono text-xs text-muted-foreground">
-                    {volUsd > 0 ? `$${volUsd.toFixed(2)}` : '---'}
-                </div>
-            )
+            const high = row.original.max_price || 0
+            return <div className="hidden md:block text-right font-mono text-sm text-emerald-500">{high > 0 ? `$${high.toFixed(2)}` : '---'}</div>
         }
     },
     {
         accessorKey: 'lowest_ask',
         header: ({ column }) => (
           <button
-            className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs text-muted-foreground ml-auto"
+            className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Low Ask
+            Ask
             <ArrowUpDown className="h-3 w-3" />
           </button>
         ),
-        cell: ({ row }) => <div className="hidden md:block text-right font-mono text-xs text-muted-foreground">{row.original.lowest_ask ? `$${Number(row.original.lowest_ask).toFixed(2)}` : '---'}</div>
-    },
-    {
-        accessorKey: 'max_price',
-        header: ({ column }) => (
-          <button
-            className="hidden lg:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs text-muted-foreground ml-auto"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Highest Sale
-            <ArrowUpDown className="h-3 w-3" />
-          </button>
-        ),
-        cell: ({ row }) => <div className="hidden lg:block text-right font-mono text-xs text-emerald-600">{row.original.max_price ? `$${Number(row.original.max_price).toFixed(2)}` : '---'}</div>
+        cell: ({ row }) => {
+            const ask = row.original.lowest_ask || 0
+            return <div className="hidden md:block text-right font-mono text-sm">{ask > 0 ? `$${ask.toFixed(2)}` : '---'}</div>
+        }
     },
     {
         accessorKey: 'inventory',
         header: ({ column }) => (
           <button
-            className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs text-muted-foreground ml-auto"
+            className="hidden lg:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Inv
+            Listings
             <ArrowUpDown className="h-3 w-3" />
           </button>
         ),
-        cell: ({ row }) => <div className="hidden md:block text-right font-mono text-xs text-muted-foreground">{row.original.inventory}</div>
+        cell: ({ row }) => {
+            const inv = row.original.inventory || 0
+            const vol = row.original.volume_24h || 0
+            // Time-to-sell: days to clear current inventory at current velocity
+            const daysToSell = vol > 0 ? (inv / vol) : null
+            const daysDisplay = daysToSell !== null
+                ? daysToSell < 1 ? '<1d' : `~${Math.round(daysToSell)}d`
+                : '—'
+            // Color code: fast sell = green, slow = red
+            const daysClass = daysToSell !== null
+                ? daysToSell < 3 ? 'text-emerald-500'
+                : daysToSell > 14 ? 'text-red-400'
+                : 'text-muted-foreground'
+                : 'text-muted-foreground'
+            return (
+                <div className="hidden lg:block text-right">
+                    <div className="font-mono text-sm">{inv}</div>
+                    <div className={clsx("text-[9px]", daysClass)}>{daysDisplay} sell</div>
+                </div>
+            )
+        }
     },
     {
         id: 'track',
         header: () => <div className="text-xs uppercase tracking-wider text-muted-foreground text-center">Track</div>,
         cell: ({ row }) => {
-            if (!user) return null
             return (
                 <div className="flex justify-center">
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
+                            if (!user) {
+                                // Redirect to login if not logged in
+                                navigate({ to: '/login' })
+                                return
+                            }
                             setTrackingCard(row.original)
                             setTrackForm({ quantity: 1, purchase_price: row.original.vwap || row.original.latest_price || 0 })
                         }}
                         className="p-1.5 rounded border border-border hover:bg-primary hover:text-primary-foreground transition-colors group"
-                        title="Add to Portfolio"
+                        title={user ? "Add to Portfolio" : "Login to track"}
                     >
                         <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -298,7 +339,7 @@ function Home() {
     },
     initialState: {
       pagination: {
-        pageSize: 50,
+        pageSize: 75, // Increased from 50 due to compact rows
       },
     },
   })
@@ -377,6 +418,9 @@ function Home() {
                             >
                                 <option value="all">All Types</option>
                                 <option value="Single">Singles</option>
+                                <option value="Box">Boxes</option>
+                                <option value="Pack">Packs</option>
+                                <option value="Lot">Lots</option>
                                 <option value="Proof">Proofs</option>
                             </select>
 
@@ -415,7 +459,7 @@ function Home() {
                                     {table.getHeaderGroups().map(headerGroup => (
                                         <tr key={headerGroup.id}>
                                             {headerGroup.headers.map(header => (
-                                            <th key={header.id} className="px-3 py-2.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30">
+                                            <th key={header.id} className="px-2 py-1.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30">
                                                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                                 </th>
                                             ))}
@@ -431,7 +475,7 @@ function Home() {
                                                 onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(row.original.id) } })}
                                             >
                                                 {row.getVisibleCells().map(cell => (
-                                                <td key={cell.id} className="px-2 md:px-3 py-2.5 whitespace-nowrap">
+                                                <td key={cell.id} className="px-2 py-1.5 whitespace-nowrap">
                                                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                                     </td>
                                                 ))}

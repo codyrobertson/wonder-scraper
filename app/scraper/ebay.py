@@ -133,7 +133,8 @@ def parse_total_results(html_content: str) -> int:
     result_count_elem = soup.select_one(".srp-controls__count-heading, .srp-controls__count-heading span.BOLD")
     if result_count_elem:
         text = result_count_elem.get_text(strip=True)
-        match = re.search(r'([\d,]+)\s+results', text)
+        # Handle "1,200+ results" format (with optional plus sign)
+        match = re.search(r'([\d,]+)\+?\s*results', text)
         if match:
             return int(match.group(1).replace(',', ''))
     return 0
@@ -221,8 +222,12 @@ def _is_valid_match(title: str, card_name: str, target_rarity: str = "") -> bool
     clean_name = name_lower.replace("wonders of the first", "")
 
     # Special handling for "The First" card (single card, not sealed product)
+    # Check in original title since clean_title removes "wonders of the first" which contains "the first"
+    # If found, return True early since token matching will fail due to stopword removal
     if name_lower == "the first":
-        if "the first" not in clean_title:
+        if "the first" in title_lower:
+            return True  # Valid match for "The First" card
+        else:
             return False
 
     # Tokenize and remove stopwords
