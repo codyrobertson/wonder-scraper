@@ -30,7 +30,8 @@ class AIListingExtractor:
                 base_url="https://openrouter.ai/api/v1",
                 api_key=api_key
             )
-            self.model = "openai/gpt-5-nano"
+            # Using gpt-4o-mini instead of gpt-5-nano (which returns empty responses)
+            self.model = "openai/gpt-4o-mini"
 
     def extract_listing_data(
         self,
