@@ -169,8 +169,8 @@ async def get_backfill_status(
 
 @router.post("/scrape/trigger")
 async def trigger_scheduled_scrape(
+    background_tasks: BackgroundTasks,
     x_admin_key: str = Header(..., alias="X-Admin-Key"),
-    background_tasks: BackgroundTasks
 ):
     """Manually trigger the scheduled scrape job."""
     verify_admin_key(x_admin_key)
