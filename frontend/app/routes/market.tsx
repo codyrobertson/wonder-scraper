@@ -73,12 +73,28 @@ function MarketAnalysis() {
   const metrics = useMemo(() => {
       const totalVolume = cards.reduce((acc, c) => acc + c.volume_24h, 0)
       const totalCap = cards.reduce((acc, c) => acc + c.market_cap, 0)
-      // Estimate velocity: Total Volume / (Cards * Days). Assuming 30d window for total volume usually?
-      // Let's just use average volume per card
       const avgVol = cards.length > 0 ? totalVolume / cards.length : 0
       const gainers = cards.filter(c => c.price_delta_24h > 0).length
       const losers = cards.filter(c => c.price_delta_24h < 0).length
-      return { totalVolume, totalCap, avgVol, gainers, losers }
+      const unchanged = cards.filter(c => c.price_delta_24h === 0).length
+      const totalAssets = cards.length
+
+      // Top mover (biggest absolute change)
+      const sortedByChange = [...cards].sort((a, b) => Math.abs(b.price_delta_24h) - Math.abs(a.price_delta_24h))
+      const topMover = sortedByChange[0] || null
+
+      // Most active (highest volume)
+      const sortedByVolume = [...cards].sort((a, b) => b.volume_24h - a.volume_24h)
+      const mostActive = sortedByVolume[0] || null
+
+      // Highest value card
+      const sortedByPrice = [...cards].sort((a, b) => b.latest_price - a.latest_price)
+      const highestValue = sortedByPrice[0] || null
+
+      // Breadth ratio
+      const breadthRatio = totalAssets > 0 ? ((gainers - losers) / totalAssets * 100) : 0
+
+      return { totalVolume, totalCap, avgVol, gainers, losers, unchanged, totalAssets, topMover, mostActive, highestValue, breadthRatio }
   }, [cards])
 
   // Top Lists
@@ -211,64 +227,59 @@ function MarketAnalysis() {
                 </div>
             </div>
 
-            {/* KPI Dashboard - Compact Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-shrink-0">
-                <div className="bg-card border border-border p-3 rounded flex flex-col justify-between hover:border-primary/50 transition-colors">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest">Total Volume</span>
-                        <BarChart3 className="w-3 h-3 text-muted-foreground" />
+            {/* KPI Dashboard - Wide Cards with Insights */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 flex-shrink-0">
+                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Assets Tracked</span>
                     </div>
-                    <div>
-                        <div className="text-xl font-mono font-bold">{metrics.totalVolume.toLocaleString()}</div>
-                        <div className="text-[10px] text-muted-foreground">Total Units Traded</div>
+                    <div className="text-xl font-mono font-bold">{metrics.totalAssets}</div>
+                </div>
+
+                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] uppercase text-muted-foreground font-medium">24h Volume</span>
+                    </div>
+                    <div className="text-xl font-mono font-bold">{metrics.totalVolume.toLocaleString()} <span className="text-xs text-muted-foreground">units</span></div>
+                </div>
+
+                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Market Cap</span>
+                    </div>
+                    <div className="text-xl font-mono font-bold text-emerald-500">${(metrics.totalCap / 1000).toFixed(1)}k</div>
+                </div>
+
+                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Market Sentiment</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-lg font-mono font-bold text-emerald-500">{metrics.gainers}↑</span>
+                        <span className="text-lg font-mono font-bold text-red-500">{metrics.losers}↓</span>
+                        <span className="text-xs text-muted-foreground">{metrics.unchanged} flat</span>
                     </div>
                 </div>
-                <div className="bg-card border border-border p-3 rounded flex flex-col justify-between hover:border-primary/50 transition-colors">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest">Market Cap</span>
-                        <DollarSign className="w-3 h-3 text-muted-foreground" />
+
+                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.mostActive && navigate({ to: '/cards/$cardId', params: { cardId: String(metrics.mostActive.id) } })}>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Most Active</span>
+                        <span className="text-[9px] text-primary">→</span>
                     </div>
-                    <div>
-                        <div className="text-xl font-mono font-bold text-emerald-500">${(metrics.totalCap / 1000).toFixed(1)}k</div>
-                        <div className="text-[10px] text-muted-foreground">Est. Total Value</div>
-                    </div>
-                </div>
-                <div className="bg-card border border-border p-3 rounded flex flex-col justify-between hover:border-primary/50 transition-colors">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest">Market Breadth</span>
-                        <Activity className="w-3 h-3 text-muted-foreground" />
-                    </div>
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                            <div className="text-xs font-bold text-emerald-500 w-8">{metrics.gainers}</div>
-                            <div className="flex-1 h-3 bg-muted rounded-sm overflow-hidden">
-                                <div
-                                    className="h-full bg-emerald-500/80"
-                                    style={{ width: `${cards.length > 0 ? (metrics.gainers / cards.length) * 100 : 0}%` }}
-                                />
-                            </div>
-                            <div className="text-[10px] text-muted-foreground w-12 text-right">UP</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="text-xs font-bold text-red-500 w-8">{metrics.losers}</div>
-                            <div className="flex-1 h-3 bg-muted rounded-sm overflow-hidden">
-                                <div
-                                    className="h-full bg-red-500/80"
-                                    style={{ width: `${cards.length > 0 ? (metrics.losers / cards.length) * 100 : 0}%` }}
-                                />
-                            </div>
-                            <div className="text-[10px] text-muted-foreground w-12 text-right">DOWN</div>
-                        </div>
+                    <div className="truncate">
+                        <span className="text-sm font-bold">{metrics.mostActive?.name || '-'}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{metrics.mostActive?.volume_24h || 0} trades</span>
                     </div>
                 </div>
-                <div className="bg-card border border-border p-3 rounded flex flex-col justify-between hover:border-primary/50 transition-colors">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest">Avg Velocity</span>
-                        <Zap className="w-3 h-3 text-amber-500" />
+
+                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.highestValue && navigate({ to: '/cards/$cardId', params: { cardId: String(metrics.highestValue.id) } })}>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Highest Value</span>
+                        <span className="text-[9px] text-primary">→</span>
                     </div>
-                    <div>
-                        <div className="text-xl font-mono font-bold">{metrics.avgVol.toFixed(1)}</div>
-                        <div className="text-[10px] text-muted-foreground">Trades / Asset</div>
+                    <div className="truncate">
+                        <span className="text-sm font-bold">{metrics.highestValue?.name || '-'}</span>
+                        <span className="text-xs text-emerald-500 ml-2">${metrics.highestValue?.latest_price.toFixed(2) || '0'}</span>
                     </div>
                 </div>
             </div>
