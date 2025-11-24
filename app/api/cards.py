@@ -47,7 +47,7 @@ def read_cards(
     skip: int = 0,
     limit: int = 100,
     search: Optional[str] = None,
-    time_period: Optional[str] = Query(default="24h", regex="^(24h|7d|30d|90d|all)$"),
+    time_period: Optional[str] = Query(default="24h", regex="^(24h|1d|3d|7d|14d|30d|90d|all)$"),
     product_type: Optional[str] = Query(default=None, description="Filter by product type (e.g., Single, Box, Pack)"),
 ) -> Any:
     """
@@ -62,7 +62,10 @@ def read_cards(
     # Calculate time cutoff
     time_cutoffs = {
         "24h": timedelta(hours=24),
+        "1d": timedelta(days=1),
+        "3d": timedelta(days=3),
         "7d": timedelta(days=7),
+        "14d": timedelta(days=14),
         "30d": timedelta(days=30),
         "90d": timedelta(days=90),
         "all": None
@@ -77,7 +80,7 @@ def read_cards(
     if product_type:
         # Case-insensitive match for better UX
         card_query = card_query.where(Card.product_type.ilike(product_type))
-        
+
     card_query = card_query.offset(skip).limit(limit)
     cards = session.exec(card_query).all()
     
@@ -136,12 +139,16 @@ def read_cards(
             # Store full object or dict for the card
             last_sale_map = {row[0]: {'price': row[1], 'treatment': row[2]} for row in results}
             
-            # Calculate VWAP (Average Sold Price)
+            # Calculate VWAP (Volume Weighted Average Price)
             vwap_query = text(f"""
-                SELECT card_id, AVG(price) as vwap
+                SELECT
+                    card_id,
+                    SUM(price * quantity) / NULLIF(SUM(quantity), 0) as vwap
                 FROM marketprice
-                WHERE card_id IN ({id_list}) 
+                WHERE card_id IN ({id_list})
                 AND listing_type = 'sold'
+                AND price > 0
+                AND quantity > 0
                 {f"AND sold_date >= '{cutoff_time}'" if cutoff_time else ""}
                 GROUP BY card_id
             """)
@@ -346,15 +353,36 @@ def read_market_data(
     session: Session = Depends(get_session),
 ) -> Any:
     """
-    Get latest market snapshot for a card.
+    Get latest market snapshot for a card with VWAP calculation.
     """
+    from sqlalchemy import text
+    from datetime import datetime, timedelta
+
     statement = select(MarketSnapshot).where(MarketSnapshot.card_id == card_id).order_by(MarketSnapshot.timestamp.desc())
     snapshot = session.exec(statement).first()
-    
+
     if not snapshot:
         raise HTTPException(status_code=404, detail="Market data not found for this card")
-        
-    return snapshot
+
+    # Calculate VWAP (30-day Volume Weighted Average Price)
+    cutoff_30d = datetime.utcnow() - timedelta(days=30)
+    vwap_q = text("""
+        SELECT SUM(price * quantity) / NULLIF(SUM(quantity), 0)
+        FROM marketprice
+        WHERE card_id = :cid
+        AND listing_type = 'sold'
+        AND sold_date >= :cutoff
+        AND price > 0
+        AND quantity > 0
+    """)
+    vwap_result = session.exec(vwap_q, params={"cid": card_id, "cutoff": cutoff_30d}).first()
+    vwap = float(vwap_result[0]) if vwap_result and vwap_result[0] is not None else None
+
+    # Convert snapshot to dict and add VWAP
+    snapshot_dict = snapshot.model_dump()
+    snapshot_dict['vwap'] = vwap
+
+    return MarketSnapshotOut(**snapshot_dict)
 
 @router.get("/{card_id}/history", response_model=List[MarketPriceOut])
 def read_sales_history(

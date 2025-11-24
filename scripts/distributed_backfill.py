@@ -4,17 +4,6 @@ Distributed backfill script using multiprocessing for parallel scraping.
 import asyncio
 import multiprocessing as mp
 from datetime import datetime, timedelta
-from sqlmodel import Session, select
-from app.db import engine
-from app.models.card import Card
-from app.models.market import MarketSnapshot
-from scripts.scrape_card import scrape_card
-from app.scraper.browser import BrowserManager
-import sys
-
-import asyncio
-import multiprocessing as mp
-from datetime import datetime, timedelta
 from typing import List
 from sqlmodel import Session, select
 from app.db import engine
@@ -24,6 +13,10 @@ from scripts.scrape_card import scrape_card
 from app.scraper.browser import BrowserManager
 import sys
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Global browser lock for the process
 _process_browser = None
@@ -81,6 +74,8 @@ async def process_card_batch(cards_data: List[dict], is_backfill: bool = False):
 
 def worker_process_batch(args):
     """Wrapper to run async batch in a process."""
+    # Load environment variables in worker process
+    load_dotenv()
     cards_data, is_backfill = args
     return asyncio.run(process_card_batch(cards_data, is_backfill=is_backfill))
 

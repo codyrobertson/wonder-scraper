@@ -14,6 +14,10 @@ from app.scraper.browser import BrowserManager
 from app.scraper.opensea import scrape_opensea_collection
 import sys
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Global browser lock for the process
 _process_browser = None
@@ -66,6 +70,8 @@ async def process_card_batch(cards_data: List[dict], is_backfill: bool = True):
 
 def worker_process_batch(args):
     """Wrapper to run async batch in a process."""
+    # Load environment variables in worker process
+    load_dotenv()
     cards_data, is_backfill = args
     return asyncio.run(process_card_batch(cards_data, is_backfill=is_backfill))
 

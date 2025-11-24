@@ -22,6 +22,7 @@ type Card = {
   inventory?: number
   volume_usd_24h?: number // New field for dollar volume
   product_type?: string // Single, Box, Pack, Proof
+  condition?: string // For boxes/packs: Sealed, Unsealed
   max_price?: number // Highest confirmed sale
 }
 
@@ -142,9 +143,15 @@ function Home() {
           <ArrowUpDown className="h-3 w-3" />
         </button>
       ),
+      sortingFn: (rowA, rowB, columnId) => {
+        // Use same fallback logic as display: vwap -> latest_price -> 0
+        const priceA = rowA.original.vwap ?? rowA.original.latest_price ?? 0
+        const priceB = rowB.original.vwap ?? rowB.original.latest_price ?? 0
+        return priceA - priceB
+      },
       cell: ({ row }) => {
-          const price = row.original.vwap || row.original.latest_price // Prefer VWAP
-          const delta = row.original.price_delta_24h || 0
+          const price = row.original.vwap ?? row.original.latest_price ?? 0 // Prefer VWAP
+          const delta = row.original.price_delta_24h ?? 0
           const isPositive = delta >= 0
           const hasPrice = price && price > 0
 
@@ -270,7 +277,7 @@ function Home() {
                         onClick={(e) => {
                             e.stopPropagation()
                             setTrackingCard(row.original)
-                            setTrackForm({ quantity: 1, purchase_price: row.original.vwap || row.original.latest_price || 0 })
+                            setTrackForm({ quantity: 1, purchase_price: row.original.vwap ?? row.original.latest_price ?? 0 })
                         }}
                         className="p-1.5 rounded border border-border hover:bg-primary hover:text-primary-foreground transition-colors group"
                         title="Add to Portfolio"
@@ -377,6 +384,9 @@ function Home() {
                             >
                                 <option value="all">All Types</option>
                                 <option value="Single">Singles</option>
+                                <option value="Box">Boxes</option>
+                                <option value="Pack">Packs</option>
+                                <option value="Lot">Lots</option>
                                 <option value="Proof">Proofs</option>
                             </select>
 
@@ -528,7 +538,7 @@ function Home() {
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground uppercase">Current Value</span>
-                  <span className="font-mono font-bold">${(trackForm.quantity * (trackingCard.vwap || trackingCard.latest_price || 0)).toFixed(2)}</span>
+                  <span className="font-mono font-bold">${(trackForm.quantity * (trackingCard.vwap ?? trackingCard.latest_price ?? 0)).toFixed(2)}</span>
                 </div>
               </div>
             </div>
