@@ -25,6 +25,11 @@ class AIListingExtractor:
     MAX_CACHE_SIZE = 10000
     CACHE_TTL_SECONDS = 3600  # 1 hour
 
+    # Batch configuration (conservative to stay under token limits)
+    MAX_BATCH_SIZE = 25  # Max listings per API call
+    CHARS_PER_TOKEN = 4  # Rough estimate for tokenization
+    MAX_PROMPT_CHARS = 12000  # ~3000 tokens, safe margin for gpt-4o-mini
+
     def __init__(self):
         """Initialize OpenRouter client with GPT-5-nano."""
         api_key = os.getenv("OPENROUTER_API_KEY")
@@ -140,6 +145,49 @@ class AIListingExtractor:
         """Clear all cache entries (useful for testing)."""
         self._title_cache.clear()
         self._cache_timestamps.clear()
+
+    def _estimate_batch_chars(self, listings: List[Dict[str, Any]]) -> int:
+        """Estimate character count for batch prompt."""
+        total_chars = 500  # Base prompt overhead
+        for listing in listings:
+            title = listing.get("title", "")
+            desc = listing.get("description") or ""
+            # Title + optional description + formatting
+            total_chars += len(title) + len(desc[:200]) + 50
+        return total_chars
+
+    def _split_into_safe_batches(self, listings: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+        """Split listings into batches that fit within token limits."""
+        if not listings:
+            return []
+
+        batches = []
+        current_batch = []
+        current_chars = 500  # Base overhead
+
+        for listing in listings:
+            title = listing.get("title", "")
+            desc = listing.get("description") or ""
+            listing_chars = len(title) + len(desc[:200]) + 50
+
+            # Check if adding this listing would exceed limits
+            would_exceed_chars = (current_chars + listing_chars) > self.MAX_PROMPT_CHARS
+            would_exceed_count = len(current_batch) >= self.MAX_BATCH_SIZE
+
+            if current_batch and (would_exceed_chars or would_exceed_count):
+                # Start new batch
+                batches.append(current_batch)
+                current_batch = []
+                current_chars = 500
+
+            current_batch.append(listing)
+            current_chars += listing_chars
+
+        # Don't forget last batch
+        if current_batch:
+            batches.append(current_batch)
+
+        return batches
 
     def extract_listing_data(
         self,
@@ -273,11 +321,62 @@ Always return valid JSON matching the schema exactly."""
                 self._cache_set(title_hash, fallback)
             return results
 
-        # Extract uncached listings in batch
+        # Split into safe sub-batches to avoid token limit issues
+        sub_batches = self._split_into_safe_batches(uncached_listings)
+
+        # Extract all sub-batches
+        all_extractions = []
+        for sub_batch in sub_batches:
+            sub_extractions = self._extract_single_batch(sub_batch)
+            all_extractions.extend(sub_extractions)
+
+        # Map extractions back to results
+        for i, extraction_idx in enumerate(uncached_indices):
+            if i < len(all_extractions):
+                extracted = all_extractions[i]
+                if extracted is not None:
+                    results[extraction_idx] = extracted
+                    # Cache the result
+                    title_hash = self._hash_title(uncached_listings[i].get("title", ""))
+                    self._cache_set(title_hash, extracted)
+                else:
+                    # Fallback if extraction returned None
+                    self._metrics["fallback_calls"] += 1
+                    listing = uncached_listings[i]
+                    fallback = self._fallback_extraction(
+                        listing.get("title", ""),
+                        listing.get("description")
+                    )
+                    results[extraction_idx] = fallback
+                    title_hash = self._hash_title(listing.get("title", ""))
+                    self._cache_set(title_hash, fallback)
+            else:
+                # Fallback if index out of range
+                self._metrics["fallback_calls"] += 1
+                listing = uncached_listings[i]
+                fallback = self._fallback_extraction(
+                    listing.get("title", ""),
+                    listing.get("description")
+                )
+                results[extraction_idx] = fallback
+                title_hash = self._hash_title(listing.get("title", ""))
+                self._cache_set(title_hash, fallback)
+
+        return results
+
+    def _extract_single_batch(self, listings: List[Dict[str, Any]]) -> List[Optional[Dict[str, Any]]]:
+        """
+        Extract data for a single batch of listings (internal method).
+
+        Returns list of extraction results or None for failed extractions.
+        """
+        if not listings:
+            return []
+
         try:
             self._metrics["batch_calls"] += 1
             self._metrics["ai_calls"] += 1
-            batch_prompt = self._build_batch_extraction_prompt(uncached_listings)
+            batch_prompt = self._build_batch_extraction_prompt(listings)
 
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -295,55 +394,34 @@ Always return valid JSON matching the schema exactly."""
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.1,
-                max_tokens=2000  # Higher limit for batch processing
+                max_tokens=2000
             )
 
             # Parse batch JSON response
             batch_data = json.loads(response.choices[0].message.content)
-            extractions = batch_data.get("listings", [])
+            raw_extractions = batch_data.get("listings", [])
 
-            # Map extractions back to results
-            for i, extraction_idx in enumerate(uncached_indices):
-                if i < len(extractions):
-                    extracted = extractions[i]
-                    result = {
+            # Normalize extractions
+            results = []
+            for i, listing in enumerate(listings):
+                if i < len(raw_extractions):
+                    extracted = raw_extractions[i]
+                    results.append({
                         "quantity": extracted.get("quantity", 1),
                         "product_type": extracted.get("product_type", "Single"),
                         "condition": extracted.get("condition"),
                         "treatment": extracted.get("treatment", "Classic Paper"),
                         "confidence": extracted.get("confidence", 0.8)
-                    }
-                    results[extraction_idx] = result
-
-                    # Cache the result
-                    title_hash = self._hash_title(uncached_listings[i].get("title", ""))
-                    self._cache_set(title_hash, result)
+                    })
                 else:
-                    # Fallback if extraction missing
-                    self._metrics["fallback_calls"] += 1
-                    listing = uncached_listings[i]
-                    fallback = self._fallback_extraction(
-                        listing.get("title", ""),
-                        listing.get("description")
-                    )
-                    results[extraction_idx] = fallback
-                    title_hash = self._hash_title(listing.get("title", ""))
-                    self._cache_set(title_hash, fallback)
+                    results.append(None)  # Will trigger fallback
+
+            return results
 
         except Exception as e:
-            print(f"Batch AI extraction failed: {e}, using fallback for uncached items")
-            # Use fallback for all uncached
-            self._metrics["fallback_calls"] += len(uncached_listings)
-            for i, listing in zip(uncached_indices, uncached_listings):
-                fallback = self._fallback_extraction(
-                    listing.get("title", ""),
-                    listing.get("description")
-                )
-                results[i] = fallback
-                title_hash = self._hash_title(listing.get("title", ""))
-                self._cache_set(title_hash, fallback)
-
-        return results
+            print(f"Batch extraction failed: {e}")
+            # Return None for all to trigger fallbacks
+            return [None] * len(listings)
 
     def _build_batch_extraction_prompt(
         self,
