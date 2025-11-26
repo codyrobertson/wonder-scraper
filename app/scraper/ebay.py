@@ -352,34 +352,50 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
     soup = BeautifulSoup(html_content, "lxml")
     items = soup.select("li.s-item, li.s-card")
 
+    # Debug logging for specific cards
+    debug_mode = card_name.lower() == "the first" if card_name else False
+    if debug_mode:
+        print(f"[DEBUG] Parsing {listing_type} listings for '{card_name}'")
+        print(f"[DEBUG] Found {len(items)} raw items in HTML")
+
     # Phase 1a: Collect ALL valid listings (filter, validate)
     all_listings_data = []
+    debug_stats = {"total": 0, "shop_on_ebay": 0, "no_title": 0, "failed_match": 0, "no_price": 0, "no_sold_date": 0, "passed": 0}
 
     for item in items:
+        debug_stats["total"] += 1
+
         if "s-item__header" in item.get("class", []) or "s-card__header" in item.get("class", []):
             continue
 
         title_elem = item.select_one(".s-item__title, .s-card__title")
         if not title_elem:
+            debug_stats["no_title"] += 1
             continue
         raw_title = title_elem.get_text(strip=True)
 
         if "Shop on eBay" in raw_title:
+            debug_stats["shop_on_ebay"] += 1
             continue
 
         # Clean title BEFORE validation
         title = _clean_title_text(raw_title)
 
         if card_name and not _is_valid_match(title, card_name, target_rarity):
+            debug_stats["failed_match"] += 1
+            if debug_mode:
+                print(f"[DEBUG] REJECTED: {title[:80]}...")
             continue
 
         price_elem = item.select_one(".s-item__price, .s-card__price")
         if not price_elem:
+            debug_stats["no_price"] += 1
             continue
 
         price_str = price_elem.get_text(strip=True)
         price = _clean_price(price_str)
         if price is None:
+            debug_stats["no_price"] += 1
             continue
 
         sold_date = None
@@ -398,6 +414,9 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
                     if "Sold" in text:
                         sold_date = _parse_date(text)
             if not sold_date:
+                debug_stats["no_sold_date"] += 1
+                if debug_mode:
+                    print(f"[DEBUG] NO SOLD DATE: {title[:60]}...")
                 continue
         else:
             pass
@@ -426,6 +445,12 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
             "bid_count": bid_count,
             "image_url": image_url
         })
+        debug_stats["passed"] += 1
+        if debug_mode:
+            print(f"[DEBUG] ACCEPTED: {title[:60]}... @ ${price}")
+
+    if debug_mode:
+        print(f"[DEBUG] Stats: {debug_stats}")
 
     if not all_listings_data:
         return []
