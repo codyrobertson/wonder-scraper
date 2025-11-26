@@ -218,14 +218,20 @@ def _is_valid_match(title: str, card_name: str, target_rarity: str = "") -> bool
 
     # Clean the title:
     # Remove "Wonders of the First" but KEEP key words like "existence"
-    clean_title = title_lower.replace("wonders of the first", "")
-    clean_name = name_lower.replace("wonders of the first", "")
+    # Also normalize punctuation for better tokenization
+    clean_title = title_lower.replace("wonders of the first", "").replace("-", " ").replace("–", " ")
+    clean_name = name_lower.replace("wonders of the first", "").replace("-", " ").replace("–", " ")
+    # Remove quotes, apostrophes, and commas (e.g., "Autumn, Essence Animated" should match "Autumn Essence Animated")
+    for char in ["'", "'", '"', '"', '"', ",", ":", ";"]:
+        clean_title = clean_title.replace(char, "")
+        clean_name = clean_name.replace(char, "")
 
     # Special handling for "The First" card (single card, not sealed product)
-    # Check in original title since clean_title removes "wonders of the first" which contains "the first"
-    # If found, return True early since token matching will fail due to stopword removal
+    # We need to check if "the first" appears OUTSIDE of "wonders of the first"
+    # Use clean_title which has "wonders of the first" removed
     if name_lower == "the first":
-        if "the first" in title_lower:
+        # Check if "the first" appears in the cleaned title (after removing "wonders of the first")
+        if "the first" in clean_title or "first" in clean_title.split():
             return True  # Valid match for "The First" card
         else:
             return False
@@ -250,8 +256,14 @@ def _is_valid_match(title: str, card_name: str, target_rarity: str = "") -> bool
         match_ratio = len(common_tokens) / len(card_tokens_set)
 
         # For sealed products (boxes, packs, lots), be more lenient - require 60% match
-        # For single cards, require strict 100% match to prevent mismatches
-        required_ratio = 0.6 if is_product else 1.0
+        # For single cards with short names (1-2 tokens), require 100% match
+        # For single cards with longer names (3+ tokens), allow 80% match for flexibility
+        if is_product:
+            required_ratio = 0.6
+        elif len(card_tokens_set) <= 2:
+            required_ratio = 1.0  # Short names need exact match to avoid false positives
+        else:
+            required_ratio = 0.8  # Longer names can have some flexibility
 
         if match_ratio < required_ratio:
             return False
