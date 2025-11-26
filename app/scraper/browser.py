@@ -33,9 +33,9 @@ class BrowserManager:
                 cls._playwright = await async_playwright().start()
 
                 if BROWSER_WS_URL:
-                    # Connect to remote browserless service via CDP
+                    # Connect to remote Playwright browser server
                     print(f"Connecting to remote browser: {BROWSER_WS_URL}")
-                    cls._browser = await cls._playwright.chromium.connect_over_cdp(BROWSER_WS_URL)
+                    cls._browser = await cls._playwright.chromium.connect(BROWSER_WS_URL)
                 else:
                     # Local browser launch (fallback for dev)
                     print("Launching local browser...")
