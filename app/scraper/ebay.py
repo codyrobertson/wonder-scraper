@@ -93,11 +93,17 @@ def _bulk_check_indexed(
 
     return indexed_indices
 
-def parse_search_results(html_content: str, card_id: int = 0, card_name: str = "", target_rarity: str = "") -> List[MarketPrice]:
+def parse_search_results(html_content: str, card_id: int = 0, card_name: str = "", target_rarity: str = "", return_all: bool = False) -> List[MarketPrice]:
     """
     Parses eBay HTML search results and extracts market prices (Sold listings).
+
+    Args:
+        return_all: If True, returns all valid listings (for stats).
+                   If False, returns only new listings not in DB (for saving).
     """
-    return _parse_generic_results(html_content, card_id, listing_type="sold", card_name=card_name, target_rarity=target_rarity)
+    return _parse_generic_results(html_content, card_id, listing_type="sold",
+                                 card_name=card_name, target_rarity=target_rarity,
+                                 return_all=return_all)
 
 def parse_active_results(html_content: str, card_id: int = 0, card_name: str = "", target_rarity: str = "") -> List[MarketPrice]:
     """
@@ -348,7 +354,7 @@ def _clean_title_text(title: str) -> str:
             
     return title.strip()
 
-def _parse_generic_results(html_content: str, card_id: int, listing_type: str, card_name: str = "", target_rarity: str = "") -> List[MarketPrice]:
+def _parse_generic_results(html_content: str, card_id: int, listing_type: str, card_name: str = "", target_rarity: str = "", return_all: bool = False) -> List[MarketPrice]:
     soup = BeautifulSoup(html_content, "lxml")
     items = soup.select("li.s-item, li.s-card")
 
@@ -456,15 +462,15 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
         return []
 
     # Phase 1b: Bulk DB dedup check (single query instead of N queries)
-    indexed_indices = _bulk_check_indexed(card_id, all_listings_data)
+    indexed_indices = _bulk_check_indexed(card_id, all_listings_data) if not return_all else set()
 
-    # Phase 1c: Filter out already-indexed listings
+    # Phase 1c: Filter out already-indexed listings (unless return_all=True for stats)
     listings_to_extract = []
     listing_metadata = []
 
     for i, listing_data in enumerate(all_listings_data):
-        if i not in indexed_indices:
-            # Not indexed yet, include for AI extraction
+        if return_all or i not in indexed_indices:
+            # Include for AI extraction if: return_all=True OR not indexed yet
             listings_to_extract.append({
                 "title": listing_data["title"],
                 "description": None,

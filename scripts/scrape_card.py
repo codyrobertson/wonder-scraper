@@ -75,85 +75,115 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", s
     active_ask, active_inv, highest_bid = await scrape_active_data(card_name, card_id, search_term=unique_queries[0])
     
     # 2. Scrape SOLD listings using variations if needed
-    all_prices = []
+    all_prices = []  # For saving to DB (new listings only)
+    all_prices_for_stats = []  # For calculating stats (all listings)
     total_volume = 0
     clean_name = card_name.replace("Wonders of the First", "").strip()
-    
+
     # Track unique listings to prevent duplicates from multiple queries
     # Key: external_id (preferred) or (title, price, sold_date)
     seen_ids = set()
     seen_keys = set()
-    
+
     for query in unique_queries:
         print(f"Trying Query: {query}")
-        
+
         query_prices = []
+        query_prices_for_stats = []
         for page in range(1, max_pages + 1):
             url = build_ebay_url(query, sold_only=True, page=page)
-            
+
             try:
                 # Use Pydoll browser (handles eBay's bot detection)
                 html = await get_page_content(url)
             except Exception as e:
                 print(f"Failed to fetch page {page}: {e}")
                 break
-            
-            # Parse this page
-            page_prices = parse_search_results(html, card_id=card_id, card_name=clean_name, target_rarity=rarity_name)
-            
-            if not page_prices:
+
+            # Parse this page - get ALL listings for stats calculation
+            page_prices_for_stats = parse_search_results(html, card_id=card_id, card_name=clean_name,
+                                                         target_rarity=rarity_name, return_all=True)
+            # Parse this page - get only NEW listings for saving to DB
+            page_prices = parse_search_results(html, card_id=card_id, card_name=clean_name,
+                                              target_rarity=rarity_name, return_all=False)
+
+            if not page_prices_for_stats:
                 break
-                
-            # Add unique prices
+
+            # Add unique prices for DB saving (new listings only)
             for mp in page_prices:
                 is_duplicate = False
-                
+
                 # Check ID match (Best)
                 if mp.external_id and mp.external_id in seen_ids:
                     is_duplicate = True
-                
+
                 # Check composite key match (Fallback)
                 key = (mp.title, mp.price, mp.sold_date)
                 if key in seen_keys:
                     is_duplicate = True
-                    
+
                 if not is_duplicate:
                     if mp.external_id:
                         seen_ids.add(mp.external_id)
                     seen_keys.add(key)
-                    
+
                     query_prices.append(mp)
                     all_prices.append(mp)
+
+            # Add ALL listings for stats calculation (includes already-indexed ones)
+            for mp in page_prices_for_stats:
+                is_duplicate = False
+
+                # Check ID match (Best)
+                if mp.external_id and mp.external_id in seen_ids:
+                    is_duplicate = True
+
+                # Check composite key match (Fallback)
+                key = (mp.title, mp.price, mp.sold_date)
+                if key in seen_keys:
+                    is_duplicate = True
+
+                if not is_duplicate:
+                    if mp.external_id:
+                        seen_ids.add(mp.external_id)
+                    seen_keys.add(key)
+
+                    query_prices_for_stats.append(mp)
+                    all_prices_for_stats.append(mp)
             
             # Get total from first page of FIRST query only (best approximation)
             if page == 1 and query == unique_queries[0]:
                 total_volume = parse_total_results(html)
-            
             await asyncio.sleep(1)
-            
-        print(f"Found {len(query_prices)} new results with '{query}'. Total unique: {len(all_prices)}")
+
+        print(f"Found {len(query_prices)} new listings to save, {len(query_prices_for_stats)} total for stats. Total unique: {len(all_prices_for_stats)}")
 
         # Early stopping: If we have enough data, stop trying more queries
         # Threshold based on product type (singles need less, boxes need more variety)
         min_results = 5 if product_type == "Single" else 10
 
-        if not is_backfill and len(all_prices) >= min_results:
-            print(f"✓ Sufficient data ({len(all_prices)} results), skipping remaining queries.")
+        if not is_backfill and len(all_prices_for_stats) >= min_results:
+            print(f"✓ Sufficient data ({len(all_prices_for_stats)} results), skipping remaining queries.")
             break
-            
-    prices = all_prices
-    print(f"Total sold listings across {page} page(s): {len(prices)}")
-    
-    # 4. Calculate Stats
+
+    # Use stats prices (includes existing listings) for market snapshot
+    prices_for_stats = all_prices_for_stats
+    # Use new prices for saving to database
+    prices_to_save = all_prices
+
+    print(f"Total listings for stats: {len(prices_for_stats)} | New listings to save: {len(prices_to_save)}")
+
+    # 4. Calculate Stats from ALL listings (including existing ones)
     # Use parsed total from header, fallback to actual count
-    if total_volume == 0 and prices:
-        total_volume = len(prices)
-    
-    if not prices:
+    if total_volume == 0 and prices_for_stats:
+        total_volume = len(prices_for_stats)
+
+    if not prices_for_stats:
         print("No sold data found.")
         stats = {"min": 0.0, "max": 0.0, "avg": 0.0, "volume": 0}
     else:
-        price_values = [p.price for p in prices]
+        price_values = [p.price for p in prices_for_stats]
         stats = calculate_stats(price_values)
         # Override volume with the parsed total from header
         stats["volume"] = total_volume
@@ -162,8 +192,10 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", s
     # 5. Save to DB
     if card_id > 0:
         with Session(engine) as session:
-            if prices:
-                session.add_all(prices)
+            # Save only NEW listings to database
+            if prices_to_save:
+                session.add_all(prices_to_save)
+                print(f"Saving {len(prices_to_save)} new listings to database")
             
             snapshot = MarketSnapshot(
                 card_id=card_id,
