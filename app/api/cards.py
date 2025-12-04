@@ -120,7 +120,8 @@ def read_cards(
     last_sale_map = {}
     vwap_map = {}
     prev_price_map = {} # Price N hours ago
-    
+    active_stats_map = {}  # Computed from MarketPrice for fresh lowest_ask/inventory
+
     if card_ids:
         try:
             from sqlalchemy import text
@@ -157,6 +158,18 @@ def read_cards(
                 """)
                 vwap_results = session.execute(vwap_query, {"card_ids": card_ids}).all()
             vwap_map = {row[0]: row[1] for row in vwap_results}
+
+            # Fetch LIVE active listing stats (lowest_ask, inventory) from MarketPrice
+            # This ensures fresh data even when snapshots are stale
+            active_stats_query = text("""
+                SELECT card_id, MIN(price) as lowest_ask, COUNT(*) as inventory
+                FROM marketprice
+                WHERE card_id = ANY(:card_ids)
+                AND listing_type = 'active'
+                GROUP BY card_id
+            """)
+            active_stats_results = session.execute(active_stats_query, {"card_ids": card_ids}).all()
+            active_stats_map = {row[0]: {'lowest_ask': row[1], 'inventory': row[2]} for row in active_stats_results}
 
             # Fetch Previous Closing Price with proper parameter binding
             if cutoff_time:
@@ -211,6 +224,11 @@ def read_cards(
         if last_price and latest_snap and latest_snap.avg_price > 0:
              deal_delta = ((last_price - latest_snap.avg_price) / latest_snap.avg_price) * 100
         
+        # Get LIVE active stats from MarketPrice (preferred) or fallback to snapshot
+        live_active = active_stats_map.get(card.id, {})
+        lowest_ask = live_active.get('lowest_ask') or (latest_snap.lowest_ask if latest_snap else None)
+        inventory = live_active.get('inventory') or (latest_snap.inventory if latest_snap else 0)
+
         c_out = CardOut(
             id=card.id,
             name=card.name,
@@ -222,8 +240,8 @@ def read_cards(
             price_delta_24h=avg_delta, # Now reflects Market Trend (Avg Price)
             last_sale_diff=deal_delta, # Now reflects Deal Rating (Last Sale vs Avg)
             last_sale_treatment=last_treatment, # Added treatment
-            lowest_ask=latest_snap.lowest_ask if latest_snap else None,
-            inventory=latest_snap.inventory if latest_snap else 0,
+            lowest_ask=lowest_ask,  # Use LIVE data from MarketPrice
+            inventory=inventory,    # Use LIVE data from MarketPrice
             product_type=card.product_type if hasattr(card, 'product_type') else "Single",
             max_price=latest_snap.max_price if latest_snap else None,
             avg_price=latest_snap.avg_price if latest_snap else None,
@@ -323,7 +341,27 @@ def read_card(
     deal_delta = 0.0
     if real_price and latest_snap and latest_snap.avg_price > 0:
         deal_delta = ((real_price - latest_snap.avg_price) / latest_snap.avg_price) * 100
-            
+
+    # Fetch LIVE active stats from MarketPrice table (always fresh)
+    live_lowest_ask = None
+    live_inventory = 0
+    try:
+        active_stats_q = text("""
+            SELECT MIN(price) as lowest_ask, COUNT(*) as inventory
+            FROM marketprice
+            WHERE card_id = :cid AND listing_type = 'active'
+        """)
+        active_res = session.execute(active_stats_q, {"cid": card_id}).first()
+        if active_res:
+            live_lowest_ask = active_res[0]
+            live_inventory = active_res[1] or 0
+    except Exception:
+        pass
+
+    # Use live data if available, otherwise fallback to snapshot
+    lowest_ask = live_lowest_ask or (latest_snap.lowest_ask if latest_snap else None)
+    inventory = live_inventory or (latest_snap.inventory if latest_snap else 0)
+
     c_out = CardOut(
         id=card.id,
         name=card.name,
@@ -335,8 +373,8 @@ def read_card(
         price_delta_24h=avg_delta,
         last_sale_diff=deal_delta,
         last_sale_treatment=real_treatment,
-        lowest_ask=latest_snap.lowest_ask if latest_snap else None,
-        inventory=latest_snap.inventory if latest_snap else 0,
+        lowest_ask=lowest_ask,  # Use LIVE data from MarketPrice
+        inventory=inventory,    # Use LIVE data from MarketPrice
         product_type=card.product_type if hasattr(card, 'product_type') else "Single",
         max_price=latest_snap.max_price if latest_snap else None,
         avg_price=latest_snap.avg_price if latest_snap else None,
