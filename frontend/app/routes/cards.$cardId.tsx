@@ -75,14 +75,14 @@ function CardDetail() {
     }
   })
 
-  // Fetch Sales History (sold + active listings)
+  // Fetch Sales History (sold + active listings) - fetch ALL for complete timeline
   const { data: history, isLoading: isLoadingHistory } = useQuery({
       queryKey: ['card-history', cardId],
       queryFn: async () => {
           try {
-            // Fetch both sold and active listings
-            const soldData = await api.get(`cards/${cardId}/history?limit=100`).json<MarketPrice[]>()
-            const activeData = await api.get(`cards/${cardId}/active?limit=50`).json<MarketPrice[]>().catch(() => [])
+            // Fetch ALL sold listings for complete price history chart
+            const soldData = await api.get(`cards/${cardId}/history?limit=1000`).json<MarketPrice[]>()
+            const activeData = await api.get(`cards/${cardId}/active?limit=100`).json<MarketPrice[]>().catch(() => [])
             // Combine and sort by date (active listings first, then sold by date)
             return [...activeData, ...soldData]
           } catch (e) {
@@ -376,13 +376,15 @@ function CardDetail() {
                                             <LineChart data={chartData} margin={{ top: 20, right: 60, bottom: 30, left: 20 }}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#333" strokeOpacity={0.3} vertical={false} horizontal={true} />
                                                 <XAxis
-                                                    dataKey="x"
-                                                    name="Sale"
-                                                    domain={[0, chartData.length - 1]}
+                                                    dataKey="timestamp"
+                                                    name="Date"
+                                                    type="number"
+                                                    domain={['dataMin', 'dataMax']}
+                                                    scale="time"
                                                     tick={{fill: '#666', fontSize: 10}}
                                                     axisLine={false}
                                                     tickLine={false}
-                                                    label={{ value: 'Sales Timeline →', position: 'bottom', fill: '#666', fontSize: 10 }}
+                                                    tickFormatter={(ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                                 />
                                                 <YAxis
                                                     dataKey="price"
