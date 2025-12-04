@@ -140,7 +140,7 @@ class BrowserManager:
                     options.add_argument("--disable-translate")
                     options.add_argument("--metrics-recording-only")
                     options.add_argument("--mute-audio")
-                    options.add_argument("--no-first-run")
+                    # Note: --no-first-run is added automatically by pydoll
                     options.add_argument("--safebrowsing-disable-auto-update")
                     # Reduce process count
                     options.add_argument("--renderer-process-limit=1")
