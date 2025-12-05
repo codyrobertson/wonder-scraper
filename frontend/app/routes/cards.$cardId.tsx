@@ -205,11 +205,12 @@ function CardDetail() {
               cutoffDate = null
       }
 
-      // 1. Filter valid data first
+      // 1. Filter valid data first (only sold listings for price history)
       const validHistory = history.filter(h => {
           const validPrice = h.price !== undefined && h.price !== null && !isNaN(Number(h.price)) && Number(h.price) > 0
           const validDate = h.sold_date && !isNaN(new Date(h.sold_date).getTime())
-          if (!validPrice || !validDate) return false
+          const isSold = h.listing_type === 'sold' || !h.listing_type // Only include sold listings
+          if (!validPrice || !validDate || !isSold) return false
 
           // Apply time range filter
           if (cutoffDate) {
@@ -219,18 +220,33 @@ function CardDetail() {
           return true
       })
 
-      // 2. Sort by date
-      const sorted = validHistory.sort((a, b) =>
-          new Date(a.sold_date).getTime() - new Date(b.sold_date).getTime()
-      )
+      // 2. Sort by date, then by price (to spread same-date sales consistently)
+      const sorted = validHistory.sort((a, b) => {
+          const dateCompare = new Date(a.sold_date).getTime() - new Date(b.sold_date).getTime()
+          if (dateCompare !== 0) return dateCompare
+          return a.price - b.price // Secondary sort by price for same-date sales
+      })
 
-      // 3. Map to chart format with sequential index
+      // 3. Map to chart format, spreading same-date sales apart
+      // Track how many sales per date to offset timestamps
+      const dateCount: Record<string, number> = {}
+
       return sorted.map((h, index) => {
           const saleDate = new Date(h.sold_date)
+          const dateKey = saleDate.toISOString().split('T')[0] // YYYY-MM-DD
+
+          // Count occurrences on this date
+          dateCount[dateKey] = (dateCount[dateKey] || 0) + 1
+          const offsetIndex = dateCount[dateKey] - 1
+
+          // Add 2-hour offset for each same-date sale to spread them apart visually
+          const offsetMs = offsetIndex * 2 * 60 * 60 * 1000 // 2 hours per sale
+          const adjustedTimestamp = saleDate.getTime() + offsetMs
+
           return {
               id: `${h.id}-${index}`, // Unique ID for Recharts
               date: saleDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }),
-              timestamp: saleDate.getTime(),
+              timestamp: adjustedTimestamp,
               x: index,  // Sequential index for X-axis
               price: Number(h.price), // Ensure numeric price
               treatment: h.treatment || 'Classic Paper',
