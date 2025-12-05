@@ -162,14 +162,18 @@ function Home() {
       },
     },
     {
-      accessorKey: 'floor_price', // Floor price = avg of 4 lowest sales (30d)
+      accessorKey: 'floor_price', // Floor price = avg of 4 lowest sales (30d) - THE FMP baseline
       header: ({ column }) => (
         <button
-          className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+          className="flex flex-col items-end gap-0 hover:text-primary uppercase tracking-wider text-xs ml-auto"
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          title="Fair Market Price based on floor (avg of 4 lowest sales)"
         >
-          Floor
-          <ArrowUpDown className="h-3 w-3" />
+          <span className="flex items-center gap-1">
+            FMP
+            <ArrowUpDown className="h-3 w-3" />
+          </span>
+          <span className="text-[8px] text-muted-foreground/60 font-normal">30d Floor</span>
         </button>
       ),
       cell: ({ row }) => {
@@ -179,12 +183,16 @@ function Home() {
           const askPrice = row.original.lowest_ask || 0
           const price = salePrice || askPrice
           const isAskOnly = !salePrice && askPrice > 0
+          const hasFloor = !!floorPrice && floorPrice > 0
           const delta = row.original.price_delta_24h || 0
           const hasPrice = price && price > 0
 
           return (
             <div className="text-right flex items-center justify-end gap-2">
-                <span className={clsx("font-mono text-sm font-semibold", isAskOnly && "text-muted-foreground")}>
+                <span className={clsx(
+                    "font-mono text-sm font-semibold",
+                    hasFloor ? "text-blue-400" : isAskOnly ? "text-muted-foreground" : "text-foreground"
+                )}>
                     {hasPrice ? `$${price.toFixed(2)}` : '---'}
                     {isAskOnly && <span className="text-[9px] ml-1">(ask)</span>}
                 </span>
