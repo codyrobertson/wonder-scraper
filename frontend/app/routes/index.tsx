@@ -2,7 +2,7 @@ import { createRoute, useNavigate, Link } from '@tanstack/react-router'
 import { api, auth } from '../utils/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getSortedRowModel, SortingState, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ArrowUpDown, Search, ArrowUp, ArrowDown, Calendar, TrendingUp, DollarSign, BarChart3, LayoutDashboard, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
 import clsx from 'clsx'
 import { Route as rootRoute } from './__root'
@@ -40,7 +40,7 @@ export const Route = createRoute({
 })
 
 function Home() {
-  const [sorting, setSorting] = useState<SortingState>([])
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'volume_30d', desc: true }])
   const [globalFilter, setGlobalFilter] = useState('')
   const [timePeriod, setTimePeriod] = useState<string>('24h')
   const [productType, setProductType] = useState<string>('all')

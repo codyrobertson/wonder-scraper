@@ -5,7 +5,7 @@ import { Route as rootRoute } from './__root'
 import { ArrowLeft, TrendingUp, ArrowUp, ArrowDown, Activity, Zap, BarChart3, DollarSign } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getSortedRowModel, SortingState, getPaginationRowModel } from '@tanstack/react-table'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import clsx from 'clsx'
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Clock } from 'lucide-react'
 import {
@@ -80,6 +80,11 @@ function MarketAnalysis() {
         }) as MarketCard[]
     }
   })
+
+  // Reset sorting to volume descending when timeframe changes
+  useEffect(() => {
+    setSorting([{ id: 'volume_30d', desc: true }])
+  }, [timeFrame])
 
   // Filter out low signal cards (no confirmed sales)
   const cards = useMemo(() => {

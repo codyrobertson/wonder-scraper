@@ -1,17 +1,18 @@
-import { createRoute, useParams } from '@tanstack/react-router'
+import { createRoute, useParams, useNavigate } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../utils/auth'
 import { Route as rootRoute } from './__root'
 import { ArrowLeft, TrendingUp, Wallet, Filter, ChevronLeft, ChevronRight, X, ExternalLink, Calendar } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getPaginationRowModel, getFilteredRowModel } from '@tanstack/react-table'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ReferenceLine, ScatterChart, Scatter, Cell, ComposedChart } from 'recharts'
 import clsx from 'clsx'
 
 type CardDetail = {
   id: number
   name: string
+  slug?: string
   set_name: string
   rarity_id: number
   rarity_name?: string
@@ -149,12 +150,13 @@ type ChartType = 'line' | 'scatter'
 
 function CardDetail() {
   const { cardId } = useParams({ from: Route.id })
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [treatmentFilter, setTreatmentFilter] = useState<string>('all')
   const [selectedListing, setSelectedListing] = useState<MarketPrice | null>(null)
   const [timeRange, setTimeRange] = useState<TimeRange>('all')
   const [chartType, setChartType] = useState<ChartType>('line')
-  
+
   // Fetch Card Data
   const { data: card, isLoading: isLoadingCard } = useQuery({
     queryKey: ['card', cardId],
