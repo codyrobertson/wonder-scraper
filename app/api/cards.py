@@ -128,22 +128,27 @@ def read_cards(
 
             # Use parameterized queries to prevent SQL injection
             # PostgreSQL ANY() syntax for array parameters
+            # Filter out NULL sold_date to ensure valid last sale data
             query = text("""
                 SELECT DISTINCT ON (card_id) card_id, price, treatment
                 FROM marketprice
-                WHERE card_id = ANY(:card_ids) AND listing_type = 'sold'
-                ORDER BY card_id, sold_date DESC NULLS LAST
+                WHERE card_id = ANY(:card_ids)
+                AND listing_type = 'sold'
+                AND sold_date IS NOT NULL
+                ORDER BY card_id, sold_date DESC
             """)
             results = session.execute(query, {"card_ids": card_ids}).all()
             last_sale_map = {row[0]: {'price': row[1], 'treatment': row[2]} for row in results}
 
             # Calculate VWAP with proper parameter binding
+            # Always filter out NULL sold_date to avoid including invalid records
             if cutoff_time:
                 vwap_query = text("""
                     SELECT card_id, AVG(price) as vwap
                     FROM marketprice
                     WHERE card_id = ANY(:card_ids)
                     AND listing_type = 'sold'
+                    AND sold_date IS NOT NULL
                     AND sold_date >= :cutoff_time
                     GROUP BY card_id
                 """)
@@ -154,6 +159,7 @@ def read_cards(
                     FROM marketprice
                     WHERE card_id = ANY(:card_ids)
                     AND listing_type = 'sold'
+                    AND sold_date IS NOT NULL
                     GROUP BY card_id
                 """)
                 vwap_results = session.execute(vwap_query, {"card_ids": card_ids}).all()
@@ -173,12 +179,14 @@ def read_cards(
 
             # Fetch Previous Sale Price (oldest sale overall for trend comparison)
             # Compare most recent sale vs oldest recorded sale to show all-time trend
+            # Filter out NULL sold_date to ensure valid ordering
             prev_price_query = text("""
                 SELECT DISTINCT ON (card_id) card_id, price
                 FROM marketprice
                 WHERE card_id = ANY(:card_ids)
                 AND listing_type = 'sold'
-                ORDER BY card_id, sold_date ASC NULLS LAST
+                AND sold_date IS NOT NULL
+                ORDER BY card_id, sold_date ASC
             """)
             prev_results = session.execute(prev_price_query, {"card_ids": card_ids}).all()
             prev_price_map = {row[0]: row[1] for row in prev_results}
@@ -235,7 +243,7 @@ def read_cards(
             rarity_id=card.rarity_id,
             rarity_name=rarity_map.get(card.rarity_id, "Unknown"),
             latest_price=last_price,
-            volume_24h=latest_snap.volume if latest_snap else 0,
+            volume_30d=latest_snap.volume if latest_snap else 0,
             price_delta_24h=avg_delta, # Now reflects Market Trend (Avg Price)
             last_sale_diff=deal_delta, # Now reflects Deal Rating (Last Sale vs Avg)
             last_sale_treatment=last_treatment, # Added treatment
@@ -373,7 +381,7 @@ def read_card(
         rarity_id=card.rarity_id,
         rarity_name=rarity_name,
         latest_price=real_price,
-        volume_24h=volume_30d,  # 30-day volume from MarketPrice
+        volume_30d=volume_30d,  # 30-day volume from MarketPrice
         price_delta_24h=avg_delta,
         last_sale_diff=deal_delta,
         last_sale_treatment=real_treatment,

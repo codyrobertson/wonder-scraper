@@ -32,7 +32,7 @@ export default async function handler(req: NextRequest) {
       cardData = {
         ...basicCard,
         latest_price: marketData.avg_price,
-        volume_24h: marketData.volume,
+        volume_30d: marketData.volume,
       }
 
       // Fetch price history for chart

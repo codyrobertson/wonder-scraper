@@ -16,7 +16,7 @@ type CardDetail = {
   rarity_id: number
   rarity_name?: string
   latest_price?: number
-  volume_24h?: number
+  volume_30d?: number
   price_delta_24h?: number
   lowest_ask?: number
   inventory?: number
@@ -70,7 +70,7 @@ function CardDetail() {
           return {
               ...basic,
               latest_price: market.avg_price,
-              volume_24h: market.volume,
+              volume_30d: market.volume,
               lowest_ask: market.lowest_ask,
               inventory: market.inventory,
               max_price: market.max_price, // Added max_price for Highest Confirmed Sale
@@ -366,7 +366,7 @@ function CardDetail() {
                             <div className="hidden md:block border-l border-border pl-8">
                                 <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">30d Vol</div>
                                 <div className="text-4xl font-mono font-bold">
-                                    {(card.volume_24h || 0).toLocaleString()}
+                                    {(card.volume_30d || 0).toLocaleString()}
                                 </div>
                             </div>
                             {/* Highest Confirmed Sale */}
@@ -401,7 +401,7 @@ function CardDetail() {
                             <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
                             Vol (USD)
                         </div>
-                        <div className="text-xl font-mono font-bold">${((card.volume_24h || 0) * (card.latest_price || 0)).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                        <div className="text-xl font-mono font-bold">${((card.volume_30d || 0) * (card.latest_price || 0)).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
                     </div>
                      <div className="border border-border p-4 rounded bg-card/50 hover:bg-card transition-colors">
                         <div className="text-[10px] text-muted-foreground uppercase mb-2 flex items-center gap-2">

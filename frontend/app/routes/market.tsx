@@ -29,7 +29,7 @@ type MarketCard = {
     rarity_id: number
     latest_price: number
     avg_price: number
-    volume_24h: number // Mapped from volume_period (Total/Window)
+    volume_30d: number // Mapped from volume_period (Total/Window)
     volume_change: number // Delta
     price_delta_24h: number
     market_cap: number
@@ -58,11 +58,11 @@ function MarketAnalysis() {
         return data.map(c => ({
             ...c,
             latest_price: c.latest_price ?? 0,
-            volume_24h: c.volume_period ?? 0, // Using period volume
+            volume_30d: c.volume_period ?? 0, // Using period volume
             volume_change: c.volume_change ?? 0,
             price_delta_24h: c.price_delta_period ?? 0,
             deal_rating: c.deal_rating ?? 0,
-            market_cap: (c.latest_price ?? 0) * (c.volume_period ?? 0)
+            market_cap: (c.latest_price ?? 0) * (c.volume_30d ?? 0)
         })) as MarketCard[]
     }
   })
@@ -71,7 +71,7 @@ function MarketAnalysis() {
 
   // Compute Stats
   const metrics = useMemo(() => {
-      const totalVolume = cards.reduce((acc, c) => acc + c.volume_24h, 0)
+      const totalVolume = cards.reduce((acc, c) => acc + c.volume_30d, 0)
       const totalCap = cards.reduce((acc, c) => acc + c.market_cap, 0)
       const avgVol = cards.length > 0 ? totalVolume / cards.length : 0
       const gainers = cards.filter(c => c.price_delta_24h > 0).length
@@ -84,7 +84,7 @@ function MarketAnalysis() {
       const topMover = sortedByChange[0] || null
 
       // Most active (highest volume)
-      const sortedByVolume = [...cards].sort((a, b) => b.volume_24h - a.volume_24h)
+      const sortedByVolume = [...cards].sort((a, b) => b.volume_30d - a.volume_30d)
       const mostActive = sortedByVolume[0] || null
 
       // Highest value card
@@ -134,9 +134,9 @@ function MarketAnalysis() {
           )
       },
       {
-          accessorKey: 'volume_24h',
+          accessorKey: 'volume_30d',
           header: ({ column }) => <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>VOL</div>,
-          cell: ({ row }) => <div className="text-right font-mono">{row.original.volume_24h}</div>
+          cell: ({ row }) => <div className="text-right font-mono">{row.original.volume_30d}</div>
       },
       {
           accessorKey: 'market_cap',
@@ -277,7 +277,7 @@ function MarketAnalysis() {
                     </div>
                     <div className="truncate">
                         <span className="text-sm font-bold">{metrics.mostActive?.name || '-'}</span>
-                        <span className="text-xs text-muted-foreground ml-2">{metrics.mostActive?.volume_24h || 0} trades</span>
+                        <span className="text-xs text-muted-foreground ml-2">{metrics.mostActive?.volume_30d || 0} trades</span>
                     </div>
                 </div>
 

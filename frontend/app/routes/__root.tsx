@@ -17,7 +17,7 @@ type Card = {
   name: string
   latest_price?: number
   price_delta_24h?: number
-  volume_24h?: number
+  volume_30d?: number
 }
 
 export const Route = createRootRoute({
@@ -52,9 +52,9 @@ function RootComponent() {
 
   const topGainers = useMemo(() => [...cards].filter(c => c.price_delta_24h && c.price_delta_24h > 0).sort((a, b) => (b.price_delta_24h || 0) - (a.price_delta_24h || 0)).slice(0, 5), [cards])
   const topLosers = useMemo(() => [...cards].filter(c => c.price_delta_24h && c.price_delta_24h < 0).sort((a, b) => (a.price_delta_24h || 0) - (b.price_delta_24h || 0)).slice(0, 3), [cards])
-  const topVolume = useMemo(() => [...cards].sort((a, b) => (b.volume_24h || 0) - (a.volume_24h || 0)).slice(0, 8), [cards])
+  const topVolume = useMemo(() => [...cards].sort((a, b) => (b.volume_30d || 0) - (a.volume_30d || 0)).slice(0, 8), [cards])
   const marketMetrics = useMemo(() => {
-      const totalVolume = cards.reduce((acc, c) => acc + (c.volume_24h || 0), 0)
+      const totalVolume = cards.reduce((acc, c) => acc + (c.volume_30d || 0), 0)
       const avgVelocity = cards.length > 0 ? totalVolume / cards.length : 0
       return { totalVolume, avgVelocity }
   }, [cards])

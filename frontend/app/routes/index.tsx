@@ -16,7 +16,7 @@ type Card = {
   // Optional fields that might come from backend logic or joins
   latest_price?: number
   vwap?: number // Volume Weighted Average Price
-  volume_24h?: number
+  volume_30d?: number
   price_delta_24h?: number // Placeholder for delta
   lowest_ask?: number
   inventory?: number
@@ -84,17 +84,17 @@ function Home() {
           // Logic: Use real data if available, fallback to mock ONLY if null/undefined for demo smoothness
           // The API now returns flattened real data
           latest_price: c.latest_price ?? 0,
-          volume_24h: c.volume_24h ?? 0,
+          volume_30d: c.volume_30d ?? 0,
           inventory: c.inventory ?? 0,
           // These fields are not yet in schema/DB so we mock them or derive
           // high_bid: (c.lowest_ask ?? c.latest_price ?? 0) * 0.9, // Removed mock high_bid
           // low_ask: c.lowest_ask ?? (c.latest_price ?? 0) * 1.1, // Removed mock low_ask
           // Only show delta if price exists
           price_delta_24h: c.price_delta_24h ?? 0,
-          volume_usd_24h: (c.volume_24h ?? 0) * (c.vwap ?? c.latest_price ?? 0), // Calculate dollar volume using VWAP if possible
+          volume_usd_24h: (c.volume_30d ?? 0) * (c.vwap ?? c.latest_price ?? 0), // Calculate dollar volume using VWAP if possible
           highest_bid: (c as any).highest_bid ?? 0
       }))
-      .filter(c => (c.latest_price && c.latest_price > 0) || (c.volume_24h && c.volume_24h > 0) || (c.lowest_ask && c.lowest_ask > 0)) // Filter out items with no data
+      .filter(c => (c.latest_price && c.latest_price > 0) || (c.volume_30d && c.volume_30d > 0) || (c.lowest_ask && c.lowest_ask > 0)) // Filter out items with no data
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh
     gcTime: 30 * 60 * 1000, // 30 minutes - cache persists (renamed from cacheTime in v5)
@@ -176,7 +176,7 @@ function Home() {
       }
     },
     {
-        accessorKey: 'volume_24h',
+        accessorKey: 'volume_30d',
         header: ({ column }) => (
           <button
             className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
@@ -187,7 +187,7 @@ function Home() {
           </button>
         ),
         cell: ({ row }) => {
-            const vol = row.original.volume_24h || 0
+            const vol = row.original.volume_30d || 0
             // Chevron indicators based on volume thresholds
             let chevrons = ''
             let colorClass = 'text-muted-foreground'
@@ -280,7 +280,7 @@ function Home() {
         ),
         cell: ({ row }) => {
             const inv = row.original.inventory || 0
-            const vol = row.original.volume_24h || 0
+            const vol = row.original.volume_30d || 0
             // Time-to-sell: days to clear current inventory at current velocity
             const daysToSell = vol > 0 ? (inv / vol) : null
             const daysDisplay = daysToSell !== null
@@ -370,16 +370,16 @@ function Home() {
   const topVolume = useMemo(() => {
       if (!cards) return []
       return [...cards]
-          .sort((a, b) => (b.volume_24h || 0) - (a.volume_24h || 0))
+          .sort((a, b) => (b.volume_30d || 0) - (a.volume_30d || 0))
           .slice(0, 5)
   }, [cards])
   
   // Calculate market metrics
   const marketMetrics = useMemo(() => {
       if (!cards) return { totalVolume: 0, totalVolumeUSD: 0, avgVelocity: 0 }
-      
-      const totalVolume = cards.reduce((sum, c) => sum + (c.volume_24h || 0), 0)
-      const totalVolumeUSD = cards.reduce((sum, c) => sum + ((c.volume_24h || 0) * (c.latest_price || 0)), 0)
+
+      const totalVolume = cards.reduce((sum, c) => sum + (c.volume_30d || 0), 0)
+      const totalVolumeUSD = cards.reduce((sum, c) => sum + ((c.volume_30d || 0) * (c.latest_price || 0)), 0)
       
       // Sale velocity = avg sales per card per day
       // For time periods other than 24h, normalize to daily rate

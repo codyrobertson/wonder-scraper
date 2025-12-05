@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 from typing import List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil import parser
 import re
 import difflib
@@ -662,8 +662,59 @@ def _clean_price(price_str: str) -> Optional[float]:
         return None
 
 def _parse_date(date_str: str) -> Optional[datetime]:
+    """
+    Parse eBay sold date strings, handling both absolute and relative dates.
+
+    Examples:
+    - "Sold Oct 4, 2025" -> datetime(2025, 10, 4)
+    - "Sold 3 days ago" -> datetime.utcnow() - 3 days
+    - "Sold Dec 1" -> datetime(current_year, 12, 1)
+    """
+    if not date_str:
+        return None
+
     clean_str = date_str.lower().replace("sold", "").strip()
+
+    # Handle relative dates like "3 days ago", "1 week ago"
+    relative_match = re.search(r'(\d+)\s*(day|week|month|hour|minute)s?\s*ago', clean_str)
+    if relative_match:
+        quantity = int(relative_match.group(1))
+        unit = relative_match.group(2)
+
+        now = datetime.utcnow()
+        if unit == 'day':
+            return now - timedelta(days=quantity)
+        elif unit == 'week':
+            return now - timedelta(weeks=quantity)
+        elif unit == 'month':
+            return now - timedelta(days=quantity * 30)
+        elif unit == 'hour':
+            return now - timedelta(hours=quantity)
+        elif unit == 'minute':
+            return now - timedelta(minutes=quantity)
+
+    # Handle special relative terms
+    if 'just now' in clean_str or 'just ended' in clean_str:
+        return datetime.utcnow()
+    if 'yesterday' in clean_str:
+        return datetime.utcnow() - timedelta(days=1)
+    if 'today' in clean_str:
+        return datetime.utcnow()
+
+    # Try standard date parsing for absolute dates like "Oct 4, 2025" or "Dec 1"
     try:
-        return parser.parse(clean_str)
+        # Use current year as default if year not specified
+        parsed = parser.parse(clean_str, default=datetime(datetime.utcnow().year, 1, 1))
+
+        # Sanity check: sold_date shouldn't be in future
+        if parsed > datetime.utcnow() + timedelta(days=1):
+            # If parsed date is in future, try previous year
+            parsed = parser.parse(clean_str, default=datetime(datetime.utcnow().year - 1, 1, 1))
+
+        # Sanity check: shouldn't be too old (before 2023 for this TCG)
+        if parsed.year < 2023:
+            return None
+
+        return parsed
     except (ValueError, parser.ParserError):
         return None
