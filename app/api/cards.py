@@ -300,7 +300,7 @@ def read_card(
     # We want to find OLDEST snapshot in the window for meaningful delta
     # Since this is single card view, let's just get all recent ones and pick
     # Or simpler: Get latest and one from 24h ago
-    stmt = select(MarketSnapshot).where(MarketSnapshot.card_id == card_id).order_by(desc(MarketSnapshot.timestamp)).limit(50)
+    stmt = select(MarketSnapshot).where(MarketSnapshot.card_id == card.id).order_by(desc(MarketSnapshot.timestamp)).limit(50)
     snapshots = session.exec(stmt).all()
     
     latest_snap = snapshots[0] if snapshots else None
@@ -311,7 +311,7 @@ def read_card(
     # Fetch actual last sale
     last_sale = session.exec(
         select(MarketPrice)
-        .where(MarketPrice.card_id == card_id, MarketPrice.listing_type == "sold")
+        .where(MarketPrice.card_id == card.id, MarketPrice.listing_type == "sold")
         .order_by(desc(MarketPrice.sold_date))
         .limit(1)
     ).first()
@@ -332,7 +332,7 @@ def read_card(
             SELECT AVG(price), COUNT(*) FROM marketprice
             WHERE card_id = :cid AND listing_type = 'sold' AND sold_date >= :cutoff
         """)
-        stats_res = session.execute(stats_q, {"cid": card_id, "cutoff": cutoff_30d}).first()
+        stats_res = session.execute(stats_q, {"cid": card.id, "cutoff": cutoff_30d}).first()
         if stats_res:
             vwap = stats_res[0]
             volume_30d = stats_res[1] or 0
@@ -343,7 +343,7 @@ def read_card(
             WHERE card_id = :cid AND listing_type = 'sold' AND sold_date < :cutoff
             ORDER BY sold_date DESC LIMIT 1
         """)
-        prev_res = session.execute(prev_q, {"cid": card_id, "cutoff": cutoff_30d}).first()
+        prev_res = session.execute(prev_q, {"cid": card.id, "cutoff": cutoff_30d}).first()
         prev_close = prev_res[0] if prev_res else None
 
     except Exception:
@@ -374,7 +374,7 @@ def read_card(
             FROM marketprice
             WHERE card_id = :cid AND listing_type = 'active'
         """)
-        active_res = session.execute(active_stats_q, {"cid": card_id}).first()
+        active_res = session.execute(active_stats_q, {"cid": card.id}).first()
         if active_res:
             live_lowest_ask = active_res[0]
             live_inventory = active_res[1] or 0
