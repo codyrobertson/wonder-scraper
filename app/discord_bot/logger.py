@@ -142,3 +142,54 @@ def log_error(title: str, message: str) -> bool:
         description=message,
         color=0xEF4444  # Red
     )
+
+
+def log_new_sale(
+    card_name: str,
+    price: float,
+    treatment: Optional[str] = None,
+    url: Optional[str] = None,
+    sold_date: Optional[str] = None
+) -> bool:
+    """Log a new sale discovery with channel ping."""
+    description = f"**{card_name}** sold for **${price:.2f}**"
+    if treatment and treatment != "Classic Paper":
+        description += f" ({treatment})"
+
+    fields = []
+    if sold_date:
+        fields.append({"name": "Sold", "value": sold_date, "inline": True})
+    if url:
+        fields.append({"name": "Link", "value": f"[View on eBay]({url})", "inline": True})
+
+    return _send_log(
+        title="New Sale Detected",
+        description=description,
+        color=0x10B981,  # Green
+        fields=fields if fields else None
+    )
+
+
+def log_new_listing(
+    card_name: str,
+    price: float,
+    treatment: Optional[str] = None,
+    url: Optional[str] = None,
+    is_auction: bool = False
+) -> bool:
+    """Log a new active listing discovery with channel ping."""
+    listing_type = "Auction" if is_auction else "Buy It Now"
+    description = f"**{card_name}** listed for **${price:.2f}** ({listing_type})"
+    if treatment and treatment != "Classic Paper":
+        description += f" - {treatment}"
+
+    fields = []
+    if url:
+        fields.append({"name": "Link", "value": f"[View on eBay]({url})", "inline": True})
+
+    return _send_log(
+        title="New Listing",
+        description=description,
+        color=0x3B82F6,  # Blue
+        fields=fields if fields else None
+    )

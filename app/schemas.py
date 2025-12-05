@@ -45,6 +45,7 @@ class CardBase(BaseModel):
 
 class CardOut(CardBase):
     id: int
+    slug: Optional[str] = None  # URL-friendly slug for SEO
     rarity_name: Optional[str] = None # Added rarity_name
     # Flattened fields for easy table access
     latest_price: Optional[float] = None

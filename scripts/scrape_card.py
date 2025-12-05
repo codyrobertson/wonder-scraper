@@ -13,6 +13,7 @@ from app.scraper.ebay import parse_search_results, parse_total_results
 from app.services.math import calculate_stats
 from app.scraper.browser import BrowserManager
 from app.scraper.active import scrape_active_data
+from app.discord_bot.logger import log_new_sale
 
 async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", search_term: Optional[str] = None, set_name: str = "", product_type: str = "Single", max_pages: int = 3, is_backfill: bool = False):
     """
@@ -291,6 +292,21 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", s
             if prices_to_save:
                 session.add_all(prices_to_save)
                 print(f"Saving {len(prices_to_save)} new listings to database")
+
+                # Notify Discord about new sales (only sold listings, limit to 3 to avoid spam)
+                sold_listings = [p for p in prices_to_save if p.listing_type == "sold"]
+                for sale in sold_listings[:3]:
+                    try:
+                        sold_date_str = sale.sold_date.strftime("%b %d") if sale.sold_date else None
+                        log_new_sale(
+                            card_name=card_name,
+                            price=sale.price,
+                            treatment=sale.treatment,
+                            url=sale.url,
+                            sold_date=sold_date_str
+                        )
+                    except Exception as e:
+                        print(f"Discord notification failed: {e}")
 
             # Skip snapshot if we have no meaningful data (prevents bloat)
             has_sold_data = stats["avg"] > 0 or stats["volume"] > 0

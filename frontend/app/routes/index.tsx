@@ -494,7 +494,7 @@ function Home() {
                                             <tr
                                                 key={row.id}
                                                 className="hover:bg-muted/30 transition-colors cursor-pointer group"
-                                                onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(row.original.id) } })}
+                                                onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: row.original.slug || String(row.original.id) } })}
                                             >
                                                 {row.getVisibleCells().map(cell => (
                                                 <td key={cell.id} className="px-2 py-1.5 whitespace-nowrap">
