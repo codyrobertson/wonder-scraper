@@ -40,7 +40,7 @@ type MarketCard = {
 
 function MarketAnalysis() {
   const navigate = useNavigate()
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }])
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'volume_30d', desc: true }])
   const [timeFrame, setTimeFrame] = useState('30d')
   const [hideLowSignal, setHideLowSignal] = useState(true)
 
@@ -211,8 +211,9 @@ function MarketAnalysis() {
       onSortingChange: setSorting,
       state: { sorting },
       initialState: {
+          sorting: [{ id: 'volume_30d', desc: true }],
           pagination: {
-              pageSize: 20,
+              pageSize: 75,
           },
       },
   })
