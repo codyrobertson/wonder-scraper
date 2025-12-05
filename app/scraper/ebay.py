@@ -657,10 +657,15 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
     # Phase 3: Create MarketPrice objects with extracted data
     results = []
     for metadata, extracted_data in zip(listing_metadata, extracted_batch):
-        # Fallback to rule-based treatment detection if AI extraction has low confidence
-        treatment = extracted_data["treatment"]
-        if extracted_data["confidence"] < 0.7:
+        # For sealed products (Box, Pack, Lot, Bundle), always use rule-based detection
+        # AI extractor doesn't understand sealed product treatments
+        if product_type in ("Box", "Pack", "Lot", "Bundle"):
             treatment = _detect_treatment(metadata["title"], product_type)
+        else:
+            # For singles, use AI extraction with fallback to rule-based if low confidence
+            treatment = extracted_data["treatment"]
+            if extracted_data["confidence"] < 0.7:
+                treatment = _detect_treatment(metadata["title"], product_type)
 
         mp = MarketPrice(
             card_id=card_id,
