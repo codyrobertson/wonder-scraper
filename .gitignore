@@ -72,3 +72,6 @@ frontend/vite.config.timestamp_*.js
 frontend/app.config.timestamp_*.js
 **/vite.config.timestamp_*.js
 **/app.config.timestamp_*.js
+
+# Vercel build output
+public/
