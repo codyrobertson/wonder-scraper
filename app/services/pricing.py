@@ -307,6 +307,71 @@ class FairMarketPriceService:
         return result['fair_market_price'], result['floor_price']
 
 
+    def get_fmp_by_treatment(self, card_id: int, set_name: str, rarity_name: str, days: int = 30) -> List[Dict[str, Any]]:
+        """
+        Calculate FMP for all treatments available for this card.
+        Returns list of treatment FMPs sorted by price.
+        """
+        cutoff = datetime.utcnow() - timedelta(days=days)
+
+        # Get all treatments with sales for this card
+        query = text("""
+            SELECT
+                treatment,
+                COUNT(*) as sales_count,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) as median_price,
+                MIN(price) as min_price,
+                MAX(price) as max_price,
+                AVG(price) as avg_price
+            FROM marketprice
+            WHERE card_id = :card_id
+              AND listing_type = 'sold'
+              AND sold_date >= :cutoff
+              AND treatment IS NOT NULL
+            GROUP BY treatment
+            HAVING COUNT(*) >= 1
+            ORDER BY median_price ASC
+        """)
+
+        results = self.session.execute(query, {"card_id": card_id, "cutoff": cutoff}).fetchall()
+
+        if not results:
+            # Fallback to 90 days if no recent sales
+            if days == 30:
+                return self.get_fmp_by_treatment(card_id, set_name, rarity_name, days=90)
+            return []
+
+        treatment_fmps = []
+        for row in results:
+            treatment = row[0] or 'Classic Paper'
+            sales_count = row[1]
+            median_price = float(row[2]) if row[2] else None
+            min_price = float(row[3]) if row[3] else None
+            max_price = float(row[4]) if row[4] else None
+            avg_price = float(row[5]) if row[5] else None
+
+            # Calculate FMP for this treatment
+            treatment_mult = self.get_treatment_multiplier(card_id, treatment, days)
+            liquidity_adj = self.get_liquidity_adjustment(card_id, days)
+
+            # Use median price as the FMP for this treatment
+            fmp = median_price
+
+            treatment_fmps.append({
+                'treatment': treatment,
+                'fmp': round(fmp, 2) if fmp else None,
+                'median_price': round(median_price, 2) if median_price else None,
+                'min_price': round(min_price, 2) if min_price else None,
+                'max_price': round(max_price, 2) if max_price else None,
+                'avg_price': round(avg_price, 2) if avg_price else None,
+                'sales_count': sales_count,
+                'treatment_multiplier': round(treatment_mult, 2),
+                'liquidity_adjustment': round(liquidity_adj, 2),
+            })
+
+        return treatment_fmps
+
+
 def get_pricing_service(session: Session) -> FairMarketPriceService:
     """Factory function to create pricing service."""
     return FairMarketPriceService(session)

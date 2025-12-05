@@ -557,6 +557,50 @@ def read_active_listings(
     return active
 
 
+@router.get("/{card_id}/pricing")
+def read_card_pricing(
+    card_id: str,  # Accept string to support both ID and slug
+    session: Session = Depends(get_session),
+) -> Any:
+    """
+    Get FMP breakdown by treatment for a card.
+    Returns FMP, floor, and price stats for each treatment variant.
+    """
+    card = get_card_by_id_or_slug(session, card_id)
+
+    # Fetch rarity name
+    rarity_name = "Unknown"
+    if card.rarity_id:
+        rarity = session.get(Rarity, card.rarity_id)
+        if rarity:
+            rarity_name = rarity.name
+
+    pricing_service = FairMarketPriceService(session)
+
+    # Get FMP breakdown by treatment
+    treatment_fmps = pricing_service.get_fmp_by_treatment(
+        card_id=card.id,
+        set_name=card.set_name,
+        rarity_name=rarity_name
+    )
+
+    # Also get overall FMP and floor
+    fmp_result = pricing_service.calculate_fmp(
+        card_id=card.id,
+        set_name=card.set_name,
+        rarity_name=rarity_name
+    )
+
+    return {
+        "card_id": card.id,
+        "card_name": card.name,
+        "fair_market_price": fmp_result.get('fair_market_price'),
+        "floor_price": fmp_result.get('floor_price'),
+        "breakdown": fmp_result.get('breakdown'),
+        "by_treatment": treatment_fmps
+    }
+
+
 @router.get("/{card_id}/snapshots", response_model=List[MarketSnapshotOut])
 def read_snapshot_history(
     card_id: str,  # Accept string to support both ID and slug

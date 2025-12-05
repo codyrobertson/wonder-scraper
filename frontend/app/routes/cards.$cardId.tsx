@@ -233,6 +233,43 @@ function CardDetail() {
       enabled: !isLoadingHistory
   })
 
+  // Fetch FMP by Treatment data
+  type TreatmentFMP = {
+      treatment: string
+      fmp: number | null
+      median_price: number | null
+      min_price: number | null
+      max_price: number | null
+      avg_price: number | null
+      sales_count: number
+      treatment_multiplier: number
+      liquidity_adjustment: number
+  }
+  type PricingData = {
+      card_id: number
+      card_name: string
+      fair_market_price: number | null
+      floor_price: number | null
+      breakdown: {
+          base_set_price: number | null
+          rarity_multiplier: number
+          treatment_multiplier: number
+          condition_multiplier: number
+          liquidity_adjustment: number
+      } | null
+      by_treatment: TreatmentFMP[]
+  }
+  const { data: pricingData, isLoading: isLoadingPricing } = useQuery({
+      queryKey: ['card-pricing', cardId],
+      queryFn: async () => {
+          try {
+            return await api.get(`cards/${cardId}/pricing`).json<PricingData>()
+          } catch (e) {
+              return null
+          }
+      }
+  })
+
   // Determine if this is an OpenSea/NFT item (no individual sales, only snapshots)
   const isOpenSeaItem = useMemo(() => {
       if (!history || history.length === 0) return true
@@ -560,13 +597,22 @@ function CardDetail() {
                                 </div>
                             </div>
                             <div className="hidden md:block border-l border-border pl-8">
+                                <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider flex items-center gap-1">
+                                    FMP
+                                    <span className="text-[8px] text-muted-foreground/60">(Paper)</span>
+                                </div>
+                                <div className="text-4xl font-mono font-bold text-blue-500">
+                                    ${pricingData?.fair_market_price ? pricingData.fair_market_price.toFixed(2) : card.fair_market_price?.toFixed(2) || '---'}
+                                </div>
+                            </div>
+                            <div className="hidden md:block border-l border-border pl-8">
                                 <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">30d Vol</div>
                                 <div className="text-4xl font-mono font-bold">
                                     {(card.volume_30d || 0).toLocaleString()}
                                 </div>
                             </div>
                             {/* Highest Confirmed Sale */}
-                            <div className="hidden md:block border-l border-border pl-8">
+                            <div className="hidden lg:block border-l border-border pl-8">
                                 <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">Highest Sale</div>
                                 <div className="text-4xl font-mono font-bold text-emerald-600">
                                     ${card.max_price ? card.max_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '---'}
@@ -1032,20 +1078,21 @@ function CardDetail() {
                         </div>
                     </div>
 
-                    {/* Sales History Table (Full Width) */}
-                    <div>
+                    {/* Two Column Layout: Recent Sales + FMP by Treatment */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Recent Sales Activity Table */}
                         <div className="border border-border rounded bg-card overflow-hidden">
                             <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/20">
                                 <div className="flex items-center gap-4">
                                     <h3 className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                                        Recent Sales Activity
+                                        Recent Sales
                                         <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded text-[10px]">{filteredData.length || 0}</span>
                                     </h3>
-                                    
+
                                     {/* Filters */}
                                     <div className="flex items-center gap-2">
                                         <Filter className="w-3 h-3 text-muted-foreground" />
-                                        <select 
+                                        <select
                                             className="bg-background border border-border rounded text-[10px] uppercase px-2 py-1 focus:outline-none focus:border-primary"
                                             value={treatmentFilter}
                                             onChange={(e) => setTreatmentFilter(e.target.value)}
@@ -1058,14 +1105,14 @@ function CardDetail() {
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div className="overflow-x-auto">
+
+                            <div className="overflow-x-auto max-h-[500px]">
                                 <table className="w-full text-sm text-left">
                                     <thead className="text-xs uppercase bg-white text-black sticky top-0">
                                         {table.getHeaderGroups().map(headerGroup => (
                                             <tr key={headerGroup.id}>
                                                 {headerGroup.headers.map(header => (
-                                                    <th key={header.id} className="px-6 py-3 font-medium border-b border-border">
+                                                    <th key={header.id} className="px-4 py-3 font-medium border-b border-border">
                                                         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                                     </th>
                                                 ))}
@@ -1077,13 +1124,13 @@ function CardDetail() {
                                             <tr><td colSpan={5} className="p-12 text-center text-muted-foreground animate-pulse">Fetching ledger data...</td></tr>
                                         ) : table.getRowModel().rows?.length ? (
                                             table.getRowModel().rows.map(row => (
-                                                <tr 
-                                                    key={row.id} 
+                                                <tr
+                                                    key={row.id}
                                                     className="hover:bg-muted/30 transition-colors cursor-pointer group"
                                                     onClick={() => setSelectedListing(row.original)}
                                                 >
                                                     {row.getVisibleCells().map(cell => (
-                                                        <td key={cell.id} className="px-6 py-3 whitespace-nowrap">
+                                                        <td key={cell.id} className="px-4 py-3 whitespace-nowrap">
                                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                                         </td>
                                                     ))}
@@ -1122,47 +1169,121 @@ function CardDetail() {
                                     <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                                         <div>
                                             <p className="text-xs text-muted-foreground">
-                                                Showing <span className="font-medium">{table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}</span> to <span className="font-medium">{Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, filteredData.length)}</span> of <span className="font-medium">{filteredData.length}</span> results
+                                                Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
                                             </p>
                                         </div>
-                                        <div>
-                                            <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                                                <button
-                                                    onClick={() => table.previousPage()}
-                                                    disabled={!table.getCanPreviousPage()}
-                                                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-border bg-card text-sm font-medium text-muted-foreground hover:bg-muted/50 disabled:opacity-50"
-                                                >
-                                                    <span className="sr-only">Previous</span>
-                                                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                                                </button>
-                                                {Array.from({ length: Math.min(5, table.getPageCount()) }, (_, i) => {
-                                                    // Logic to show sliding window of pages could be added here, simplistic for now
-                                                    const pageIdx = i; 
-                                                    return (
-                                                        <button
-                                                            key={pageIdx}
-                                                            onClick={() => table.setPageIndex(pageIdx)}
-                                                            aria-current={table.getState().pagination.pageIndex === pageIdx ? 'page' : undefined}
-                                                            className={clsx(
-                                                                "relative inline-flex items-center px-4 py-2 border text-xs font-medium",
-                                                                table.getState().pagination.pageIndex === pageIdx
-                                                                    ? "z-10 bg-primary text-primary-foreground border-primary"
-                                                                    : "bg-card border-border text-muted-foreground hover:bg-muted/50"
-                                                            )}
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => table.previousPage()}
+                                                disabled={!table.getCanPreviousPage()}
+                                                className="px-2 py-1 rounded border border-border bg-card text-xs font-medium text-muted-foreground hover:bg-muted/50 disabled:opacity-50"
+                                            >
+                                                <ChevronLeft className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => table.nextPage()}
+                                                disabled={!table.getCanNextPage()}
+                                                className="px-2 py-1 rounded border border-border bg-card text-xs font-medium text-muted-foreground hover:bg-muted/50 disabled:opacity-50"
+                                            >
+                                                <ChevronRight className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* FMP by Treatment Table */}
+                        <div className="border border-border rounded bg-card overflow-hidden">
+                            <div className="px-6 py-4 border-b border-border bg-muted/20">
+                                <h3 className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                    FMP by Treatment
+                                    {pricingData?.by_treatment && (
+                                        <span className="bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded text-[10px]">
+                                            {pricingData.by_treatment.length}
+                                        </span>
+                                    )}
+                                </h3>
+                                <p className="text-[10px] text-muted-foreground mt-1">Fair Market Price by card variant (30d median)</p>
+                            </div>
+
+                            <div className="overflow-x-auto max-h-[500px]">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs uppercase bg-zinc-900 text-zinc-400 sticky top-0">
+                                        <tr>
+                                            <th className="px-4 py-3 font-medium border-b border-border">Treatment</th>
+                                            <th className="px-4 py-3 font-medium border-b border-border text-right">FMP</th>
+                                            <th className="px-4 py-3 font-medium border-b border-border text-right">Range</th>
+                                            <th className="px-4 py-3 font-medium border-b border-border text-right">Sales</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/50">
+                                        {isLoadingPricing ? (
+                                            <tr><td colSpan={4} className="p-12 text-center text-muted-foreground animate-pulse">Calculating FMP...</td></tr>
+                                        ) : pricingData?.by_treatment?.length ? (
+                                            pricingData.by_treatment.map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                                                    <td className="px-4 py-3 whitespace-nowrap">
+                                                        <span
+                                                            className="px-2 py-1 rounded text-[10px] uppercase font-bold border inline-block"
+                                                            style={{
+                                                                borderColor: getTreatmentColor(item.treatment),
+                                                                backgroundColor: `${getTreatmentColor(item.treatment)}20`,
+                                                                color: getTreatmentColor(item.treatment)
+                                                            }}
                                                         >
-                                                            {pageIdx + 1}
-                                                        </button>
-                                                    )
-                                                })}
-                                                <button
-                                                    onClick={() => table.nextPage()}
-                                                    disabled={!table.getCanNextPage()}
-                                                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-border bg-card text-sm font-medium text-muted-foreground hover:bg-muted/50 disabled:opacity-50"
-                                                >
-                                                    <span className="sr-only">Next</span>
-                                                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                                                </button>
-                                            </nav>
+                                                            {simplifyTreatment(item.treatment)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                                                        <span className="font-mono font-bold text-blue-400">
+                                                            ${item.fmp?.toFixed(2) || '---'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                                                        <span className="font-mono text-xs text-muted-foreground">
+                                                            ${item.min_price?.toFixed(0) || '?'} - ${item.max_price?.toFixed(0) || '?'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                                                        <span className="font-mono text-xs text-muted-foreground">
+                                                            {item.sales_count}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={4} className="p-12 text-center text-muted-foreground text-xs uppercase">
+                                                    No treatment data available
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* FMP Breakdown Info */}
+                            {pricingData?.breakdown && (
+                                <div className="px-4 py-3 border-t border-border bg-muted/10">
+                                    <div className="text-[10px] text-muted-foreground uppercase mb-2 font-bold">FMP Formula Breakdown</div>
+                                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Base Price:</span>
+                                            <span className="font-mono">${pricingData.breakdown.base_set_price?.toFixed(2) || '---'}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Rarity Mult:</span>
+                                            <span className="font-mono">{pricingData.breakdown.rarity_multiplier}x</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Liquidity Adj:</span>
+                                            <span className="font-mono">{pricingData.breakdown.liquidity_adjustment}x</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Floor (4 lowest):</span>
+                                            <span className="font-mono text-emerald-400">${pricingData.floor_price?.toFixed(2) || '---'}</span>
                                         </div>
                                     </div>
                                 </div>
