@@ -255,9 +255,22 @@ def calculate_market_stats(period: str = "daily") -> MarketStats:
         prev_total_sales = len(prev_sales)
         prev_total_volume = sum(s.price for s in prev_sales) if prev_sales else 0
 
-        # Calculate trend percentages
-        volume_trend_pct = ((total_volume_usd - prev_total_volume) / prev_total_volume * 100) if prev_total_volume > 0 else 0
-        sales_trend_pct = ((total_sales - prev_total_sales) / prev_total_sales * 100) if prev_total_sales > 0 else 0
+        # Calculate trend percentages with meaningful thresholds
+        # Only show trends if previous period had enough data to be meaningful
+        MIN_SALES_FOR_TREND = 5  # Require at least 5 sales in previous period
+        MAX_TREND_PCT = 100  # Cap at ±100% to avoid crazy numbers like -500%
+
+        if prev_total_volume > 0 and prev_total_sales >= MIN_SALES_FOR_TREND:
+            volume_trend_pct = ((total_volume_usd - prev_total_volume) / prev_total_volume * 100)
+            volume_trend_pct = max(-MAX_TREND_PCT, min(MAX_TREND_PCT, volume_trend_pct))
+        else:
+            volume_trend_pct = 0  # Not enough data for meaningful comparison
+
+        if prev_total_sales >= MIN_SALES_FOR_TREND:
+            sales_trend_pct = ((total_sales - prev_total_sales) / prev_total_sales * 100)
+            sales_trend_pct = max(-MAX_TREND_PCT, min(MAX_TREND_PCT, sales_trend_pct))
+        else:
+            sales_trend_pct = 0  # Not enough data for meaningful comparison
 
         # Calculate top movers (biggest % change)
         top_movers = []
@@ -464,17 +477,23 @@ def format_stats_embed(stats: MarketStats) -> Dict[str, Any]:
     period_text = '24 hours' if stats.period == 'daily' else '7 days' if stats.period == 'weekly' else '30 days'
 
     # Build trend indicators for overview
+    # Only show trends if they're non-zero (meaning we had enough prior data)
     volume_trend = ""
     if stats.volume_trend_pct > 0:
-        volume_trend = f" (+{stats.volume_trend_pct:.0f}%)"
+        volume_trend = f" ↑{stats.volume_trend_pct:.0f}%"
     elif stats.volume_trend_pct < 0:
-        volume_trend = f" ({stats.volume_trend_pct:.0f}%)"
+        volume_trend = f" ↓{abs(stats.volume_trend_pct):.0f}%"
 
     sales_trend = ""
     if stats.sales_trend_pct > 0:
-        sales_trend = f" (+{stats.sales_trend_pct:.0f}%)"
+        sales_trend = f" ↑{stats.sales_trend_pct:.0f}%"
     elif stats.sales_trend_pct < 0:
-        sales_trend = f" ({stats.sales_trend_pct:.0f}%)"
+        sales_trend = f" ↓{abs(stats.sales_trend_pct):.0f}%"
+
+    # Add context about previous period if we have meaningful data
+    prev_context = ""
+    if stats.prev_total_sales >= 5:
+        prev_context = f"\n*vs {stats.prev_total_sales} sales (${stats.prev_total_volume_usd:,.0f}) prior {stats.period}*"
 
     # Top gainers section
     gainers_text = ""
@@ -523,11 +542,23 @@ def format_stats_embed(stats: MarketStats) -> Dict[str, Any]:
 
     # Treatment breakdown with emojis
     treatment_icons = {
+        # Card treatments
         "Classic Paper": "📄",
-        "Foil": "✨",
-        "Full Art": "🖼️",
-        "Serialized": "🔢",
-        "Gilded": "🏆"
+        "Classic Foil": "✨",
+        "Stonefoil": "🪨",
+        "Formless Foil": "🌀",
+        "OCM Serialized": "🔢",
+        "Prerelease": "🎭",
+        "Promo": "🎁",
+        "Proof/Sample": "🧪",
+        "Error/Errata": "⚠️",
+        # Sealed product treatments
+        "Factory Sealed": "🏭",
+        "Sealed": "📦",
+        "New": "🆕",
+        "Unopened": "🔒",
+        "Open Box": "📂",
+        "Used": "♻️",
     }
     if stats.treatment_breakdown:
         breakdown_text += "**By Treatment:**\n"
@@ -542,7 +573,7 @@ def format_stats_embed(stats: MarketStats) -> Dict[str, Any]:
     fields = [
         {
             "name": "Overview",
-            "value": f"**Total Sales**: {stats.total_sales}{sales_trend}\n**Volume**: ${stats.total_volume_usd:,.2f}{volume_trend}\n**Cards Traded**: {stats.unique_cards_traded}\n**Avg Price**: ${stats.avg_sale_price:.2f}",
+            "value": f"**Total Sales**: {stats.total_sales}{sales_trend}\n**Volume**: ${stats.total_volume_usd:,.2f}{volume_trend}\n**Cards Traded**: {stats.unique_cards_traded}\n**Avg Price**: ${stats.avg_sale_price:.2f}{prev_context}",
             "inline": False
         },
         {

@@ -90,7 +90,7 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", s
     
     # 1. Active Data (Use the primary query)
     print("Fetching active listings...")
-    active_ask, active_inv, highest_bid = await scrape_active_data(card_name, card_id, search_term=unique_queries[0])
+    active_ask, active_inv, highest_bid = await scrape_active_data(card_name, card_id, search_term=unique_queries[0], product_type=product_type)
 
     # Fallback: If scraper found no active listings, check existing DB records
     # Active listings within the last 24 hours are still relevant
@@ -144,10 +144,12 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", s
 
             # Parse this page - get ALL listings for stats calculation
             page_prices_for_stats = parse_search_results(html, card_id=card_id, card_name=clean_name,
-                                                         target_rarity=rarity_name, return_all=True)
+                                                         target_rarity=rarity_name, return_all=True,
+                                                         product_type=product_type)
             # Parse this page - get only NEW listings for saving to DB
             page_prices = parse_search_results(html, card_id=card_id, card_name=clean_name,
-                                              target_rarity=rarity_name, return_all=False)
+                                              target_rarity=rarity_name, return_all=False,
+                                              product_type=product_type)
 
             if not page_prices_for_stats:
                 break
