@@ -177,6 +177,19 @@ def read_cards(
             active_stats_results = session.execute(active_stats_query, {"card_ids": card_ids}).all()
             active_stats_map = {row[0]: {'lowest_ask': row[1], 'inventory': row[2]} for row in active_stats_results}
 
+            # Fetch Previous Floor Price from snapshots (oldest non-null lowest_ask)
+            # This gives us floor trend: current floor vs historical floor
+            prev_floor_query = text("""
+                SELECT DISTINCT ON (card_id) card_id, lowest_ask
+                FROM marketsnapshot
+                WHERE card_id = ANY(:card_ids)
+                AND lowest_ask IS NOT NULL
+                AND lowest_ask > 0
+                ORDER BY card_id, timestamp ASC
+            """)
+            prev_floor_results = session.execute(prev_floor_query, {"card_ids": card_ids}).all()
+            prev_floor_map = {row[0]: row[1] for row in prev_floor_results}
+
             # Fetch Previous Sale Price (oldest sale overall for trend comparison)
             # Compare most recent sale vs oldest recorded sale to show all-time trend
             # Filter out NULL sold_date to ensure valid ordering
@@ -224,9 +237,9 @@ def read_cards(
         # Positive = floor going UP (getting more expensive)
         # Negative = floor going DOWN (better deals available)
         floor_delta = 0.0
-        # Get previous floor from oldest snapshot in our window
-        if lowest_ask and oldest_snap and oldest_snap.lowest_ask and oldest_snap.lowest_ask > 0:
-            floor_delta = ((lowest_ask - oldest_snap.lowest_ask) / oldest_snap.lowest_ask) * 100
+        prev_floor = prev_floor_map.get(card.id)
+        if lowest_ask and prev_floor and prev_floor > 0:
+            floor_delta = ((lowest_ask - prev_floor) / prev_floor) * 100
 
         # Last Sale Delta: How does last sale compare to floor?
         sale_delta = 0.0
@@ -379,8 +392,20 @@ def read_card(
     # Positive = floor going UP (getting more expensive)
     # Negative = floor going DOWN (better deals available)
     floor_delta = 0.0
-    if lowest_ask and oldest_snap and oldest_snap.lowest_ask and oldest_snap.lowest_ask > 0:
-        floor_delta = ((lowest_ask - oldest_snap.lowest_ask) / oldest_snap.lowest_ask) * 100
+    # Get oldest non-null floor from snapshots
+    prev_floor = None
+    try:
+        prev_floor_q = text("""
+            SELECT lowest_ask FROM marketsnapshot
+            WHERE card_id = :cid AND lowest_ask IS NOT NULL AND lowest_ask > 0
+            ORDER BY timestamp ASC LIMIT 1
+        """)
+        prev_floor_res = session.execute(prev_floor_q, {"cid": card.id}).first()
+        prev_floor = prev_floor_res[0] if prev_floor_res else None
+    except Exception:
+        pass
+    if lowest_ask and prev_floor and prev_floor > 0:
+        floor_delta = ((lowest_ask - prev_floor) / prev_floor) * 100
 
     # Last Sale Delta: How does last sale compare to floor?
     sale_delta = 0.0
