@@ -7,6 +7,7 @@ const API_URL = 'https://wonders-scraper-production.up.railway.app'
 
 interface Card {
   id: number
+  slug?: string
   name: string
   set_name: string
 }
@@ -34,9 +35,9 @@ export default async function handler(request: Request) {
         priority: '0.9',
         lastmod: today,
       },
-      // Dynamic card pages
+      // Dynamic card pages - use slug for SEO-friendly URLs
       ...cards.map((card) => ({
-        loc: `${SITE_URL}/cards/${card.id}`,
+        loc: `${SITE_URL}/cards/${card.slug || card.id}`,
         changefreq: 'daily',
         priority: '0.8',
         lastmod: today,

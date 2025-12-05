@@ -24,6 +24,7 @@ export const Route = createRoute({
 
 type MarketCard = {
     id: number
+    slug?: string
     name: string
     set_name: string
     rarity_id: number
@@ -130,7 +131,7 @@ function MarketAnalysis() {
           ),
           cell: ({ row }) => (
               <div>
-                  <div className="font-bold text-foreground hover:text-primary cursor-pointer truncate" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(row.original.id) } })}>
+                  <div className="font-bold text-foreground hover:text-primary cursor-pointer truncate" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: row.original.slug || String(row.original.id) } })}>
                       {row.original.name}
                   </div>
                   <div className="text-[10px] text-muted-foreground uppercase">{row.original.set_name}</div>
@@ -305,7 +306,7 @@ function MarketAnalysis() {
                     </div>
                 </div>
 
-                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.mostActive && navigate({ to: '/cards/$cardId', params: { cardId: String(metrics.mostActive.id) } })}>
+                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.mostActive && navigate({ to: '/cards/$cardId', params: { cardId: metrics.mostActive.slug || String(metrics.mostActive.id) } })}>
                     <div className="flex items-center justify-between mb-1">
                         <span className="text-[9px] uppercase text-muted-foreground font-medium">Most Active</span>
                         <span className="text-[9px] text-primary">→</span>
@@ -316,7 +317,7 @@ function MarketAnalysis() {
                     </div>
                 </div>
 
-                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.highestValue && navigate({ to: '/cards/$cardId', params: { cardId: String(metrics.highestValue.id) } })}>
+                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.highestValue && navigate({ to: '/cards/$cardId', params: { cardId: metrics.highestValue.slug || String(metrics.highestValue.id) } })}>
                     <div className="flex items-center justify-between mb-1">
                         <span className="text-[9px] uppercase text-muted-foreground font-medium">Highest Value</span>
                         <span className="text-[9px] text-primary">→</span>
@@ -339,7 +340,7 @@ function MarketAnalysis() {
                     </div>
                     <div className="divide-y divide-border/50">
                             {topGainers.slice(0, 5).map(c => (
-                                <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(c.id) } })}>
+                                <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: c.slug || String(c.id) } })}>
                                     <div className="truncate w-24 text-xs font-bold">{c.name}</div>
                                     <div className="text-right">
                                         <div className="text-emerald-500 text-xs font-mono font-bold">↑{Math.abs(c.price_delta_24h).toFixed(1)}%</div>
@@ -357,7 +358,7 @@ function MarketAnalysis() {
                         </div>
                         <div className="divide-y divide-border/50">
                             {topLosers.slice(0, 5).map(c => (
-                                <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(c.id) } })}>
+                                <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: c.slug || String(c.id) } })}>
                                     <div className="truncate w-24 text-xs font-bold">{c.name}</div>
                                     <div className="text-right">
                                         <div className="text-red-500 text-xs font-mono font-bold">↓{Math.abs(c.price_delta_24h).toFixed(1)}%</div>

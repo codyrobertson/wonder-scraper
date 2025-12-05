@@ -263,9 +263,22 @@ def read_cards(
     
     return JSONResponse(content=results_dict, headers={"X-Cache": "MISS"})
 
+def get_card_by_id_or_slug(session: Session, card_identifier: str) -> Card:
+    """Resolve card by ID (numeric) or slug (string)."""
+    # Try numeric ID first
+    if card_identifier.isdigit():
+        card = session.get(Card, int(card_identifier))
+        if card:
+            return card
+    # Try slug lookup
+    card = session.exec(select(Card).where(Card.slug == card_identifier)).first()
+    if card:
+        return card
+    raise HTTPException(status_code=404, detail="Card not found")
+
 @router.get("/{card_id}", response_model=CardOut)
 def read_card(
-    card_id: int,
+    card_id: str,  # Accept string to support both ID and slug
     session: Session = Depends(get_session),
 ) -> Any:
     # Check cache
@@ -273,10 +286,8 @@ def read_card(
     cached = get_cached(cache_key)
     if cached:
         return JSONResponse(content=cached, headers={"X-Cache": "HIT"})
-    
-    card = session.get(Card, card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
+
+    card = get_card_by_id_or_slug(session, card_id)
     
     # Fetch rarity name
     rarity_name = "Unknown"
@@ -376,6 +387,7 @@ def read_card(
 
     c_out = CardOut(
         id=card.id,
+        slug=card.slug,  # Include slug for SEO-friendly URLs
         name=card.name,
         set_name=card.set_name,
         rarity_id=card.rarity_id,
@@ -402,31 +414,33 @@ def read_card(
 
 @router.get("/{card_id}/market", response_model=Optional[MarketSnapshotOut])
 def read_market_data(
-    card_id: int,
+    card_id: str,  # Accept string to support both ID and slug
     session: Session = Depends(get_session),
 ) -> Any:
     """
     Get latest market snapshot for a card.
     """
-    statement = select(MarketSnapshot).where(MarketSnapshot.card_id == card_id).order_by(MarketSnapshot.timestamp.desc())
+    card = get_card_by_id_or_slug(session, card_id)
+    statement = select(MarketSnapshot).where(MarketSnapshot.card_id == card.id).order_by(MarketSnapshot.timestamp.desc())
     snapshot = session.exec(statement).first()
-    
+
     if not snapshot:
         raise HTTPException(status_code=404, detail="Market data not found for this card")
-        
+
     return snapshot
 
 @router.get("/{card_id}/history", response_model=List[MarketPriceOut])
 def read_sales_history(
-    card_id: int,
+    card_id: str,  # Accept string to support both ID and slug
     session: Session = Depends(get_session),
     limit: int = 50,
 ) -> Any:
     """
     Get sales history (individual sold listings).
     """
+    card = get_card_by_id_or_slug(session, card_id)
     statement = select(MarketPrice).where(
-        MarketPrice.card_id == card_id,
+        MarketPrice.card_id == card.id,
         MarketPrice.listing_type == "sold"
     ).order_by(desc(MarketPrice.sold_date)).limit(limit)
     prices = session.exec(statement).all()
@@ -434,15 +448,16 @@ def read_sales_history(
 
 @router.get("/{card_id}/active", response_model=List[MarketPriceOut])
 def read_active_listings(
-    card_id: int,
+    card_id: str,  # Accept string to support both ID and slug
     session: Session = Depends(get_session),
     limit: int = 50,
 ) -> Any:
     """
     Get active listings for a card.
     """
+    card = get_card_by_id_or_slug(session, card_id)
     statement = select(MarketPrice).where(
-        MarketPrice.card_id == card_id,
+        MarketPrice.card_id == card.id,
         MarketPrice.listing_type == "active"
     ).order_by(desc(MarketPrice.scraped_at)).limit(limit)
     active = session.exec(statement).all()
