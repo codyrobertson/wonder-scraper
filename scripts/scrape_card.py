@@ -260,9 +260,9 @@ async def scrape_card(card_name: str, card_id: int = 0, rarity_name: str = "", s
     else:
         price_values = [p.price for p in prices_for_stats]
         stats = calculate_stats(price_values)
-        # Override volume with the parsed total from header
-        stats["volume"] = total_volume
-        print(f"Stats: {stats} (Total Vol from Header: {total_volume})")
+        # Use actual count of validated matched listings, not eBay header (which includes non-matches)
+        stats["volume"] = len(prices_for_stats)
+        print(f"Stats: {stats} (Matched listings: {len(prices_for_stats)}, Header estimate: {total_volume})")
 
         # Get most recent sale (sort by sold_date descending)
         sorted_by_date = sorted(

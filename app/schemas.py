@@ -47,8 +47,8 @@ class CardOut(CardBase):
     id: int
     rarity_name: Optional[str] = None # Added rarity_name
     # Flattened fields for easy table access
-    latest_price: Optional[float] = None 
-    volume_24h: Optional[int] = None
+    latest_price: Optional[float] = None
+    volume_30d: Optional[int] = None  # 30-day sales volume (count of sold listings)
     price_delta_24h: Optional[float] = None
     last_sale_diff: Optional[float] = None # Diff between last sale and avg price
     last_sale_treatment: Optional[str] = None # Treatment of the last sold item
