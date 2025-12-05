@@ -453,23 +453,44 @@ For EACH listing, extract the following into JSON format:
   "listings": [
     {{
       "quantity": <number of items being sold, e.g., 1, 3, 24, 36>,
-      "product_type": <"Single" | "Box" | "Pack" | "Lot">,
-      "condition": <"Sealed" | "Unsealed" | null (for singles)>,
-      "treatment": <"Classic Paper" | "Classic Foil" | "Stonefoil" | "Formless Foil" | "OCM Serialized" | "Prerelease" | "Promo" | "Proof/Sample">,
+      "product_type": <"Single" | "Box" | "Pack" | "Lot" | "Bundle">,
+      "treatment": <see treatment options below>,
       "confidence": <0.0-1.0, your confidence in this extraction>
     }},
     ... (one entry per listing in order)
   ]
 }}
 
+**Treatment Options - DEPENDS ON PRODUCT TYPE**:
+
+For SEALED PRODUCTS (Box, Pack, Lot, Bundle):
+- "Factory Sealed" - factory sealed, brand new sealed
+- "Sealed" - sealed (default for boxes/packs if no indicator)
+- "New" - brand new, new in box, NIB
+- "Unopened" - unopened
+- "Open Box" - opened, open box
+- "Used" - used
+
+For SINGLE CARDS:
+- "Classic Paper" - standard non-foil card (default for singles)
+- "Classic Foil" - foil, holo, refractor
+- "Stonefoil" - stone foil variant
+- "Formless Foil" - formless foil variant
+- "OCM Serialized" - serialized /10, /25, /50, /75, /99, OCM
+- "Prerelease" - prerelease promo
+- "Promo" - promotional card
+- "Proof/Sample" - proof or sample card
+- "Error/Errata" - error or errata card
+
 **Rules**:
-- "Booster Box" = product_type: "Box", quantity: 24 (typical), condition: "Sealed"
-- "Collector Box" = product_type: "Box", quantity: variable, condition: "Sealed"
-- "Booster Pack" = product_type: "Pack", quantity: 1, condition: "Sealed"
+- "Booster Box" = product_type: "Box", quantity: 24 (typical), treatment: "Sealed" or "Factory Sealed"
+- "Collector Box" = product_type: "Box", quantity: variable, treatment: "Sealed"
+- "Booster Pack" = product_type: "Pack", quantity: 1, treatment: "Sealed"
 - "Lot of X" or "X Cards" = product_type: "Lot", quantity: X
 - Single cards = product_type: "Single", quantity: 1 (unless "3x Name" or similar)
 - If title says "3x" or "Lot of 5", set quantity accordingly
-- Foil/Serialized should be in treatment, not condition
+- For Boxes/Packs/Lots: use sealed product treatments (Factory Sealed, Sealed, New, etc.)
+- For Singles: use card treatments (Classic Paper, Classic Foil, Stonefoil, etc.)
 - Confidence should be lower if information is ambiguous
 
 Return ONLY valid JSON with a "listings" array containing {len(listings)} entries in order, no markdown or extra text."""
@@ -490,20 +511,41 @@ Return ONLY valid JSON with a "listings" array containing {len(listings)} entrie
 Extract the following into JSON format:
 {{
   "quantity": <number of items being sold, e.g., 1, 3, 24, 36>,
-  "product_type": <"Single" | "Box" | "Pack" | "Lot">,
-  "condition": <"Sealed" | "Unsealed" | null (for singles)>,
-  "treatment": <"Classic Paper" | "Classic Foil" | "Stonefoil" | "Formless Foil" | "OCM Serialized" | "Prerelease" | "Promo" | "Proof/Sample">,
+  "product_type": <"Single" | "Box" | "Pack" | "Lot" | "Bundle">,
+  "treatment": <see treatment options below>,
   "confidence": <0.0-1.0, your confidence in this extraction>
 }}
 
+**Treatment Options - DEPENDS ON PRODUCT TYPE**:
+
+For SEALED PRODUCTS (Box, Pack, Lot, Bundle):
+- "Factory Sealed" - factory sealed, brand new sealed
+- "Sealed" - sealed (default for boxes/packs if no indicator)
+- "New" - brand new, new in box, NIB
+- "Unopened" - unopened
+- "Open Box" - opened, open box
+- "Used" - used
+
+For SINGLE CARDS:
+- "Classic Paper" - standard non-foil card (default for singles)
+- "Classic Foil" - foil, holo, refractor
+- "Stonefoil" - stone foil variant
+- "Formless Foil" - formless foil variant
+- "OCM Serialized" - serialized /10, /25, /50, /75, /99, OCM
+- "Prerelease" - prerelease promo
+- "Promo" - promotional card
+- "Proof/Sample" - proof or sample card
+- "Error/Errata" - error or errata card
+
 **Rules**:
-- "Booster Box" = product_type: "Box", quantity: 24 (typical), condition: "Sealed"
-- "Collector Box" = product_type: "Box", quantity: variable, condition: "Sealed"
-- "Booster Pack" = product_type: "Pack", quantity: 1, condition: "Sealed"
+- "Booster Box" = product_type: "Box", quantity: 24 (typical), treatment: "Sealed" or "Factory Sealed"
+- "Collector Box" = product_type: "Box", quantity: variable, treatment: "Sealed"
+- "Booster Pack" = product_type: "Pack", quantity: 1, treatment: "Sealed"
 - "Lot of X" or "X Cards" = product_type: "Lot", quantity: X
 - Single cards = product_type: "Single", quantity: 1 (unless "3x Name" or similar)
 - If title says "3x" or "Lot of 5", set quantity accordingly
-- Foil/Serialized should be in treatment, not condition
+- For Boxes/Packs/Lots: use sealed product treatments (Factory Sealed, Sealed, New, etc.)
+- For Singles: use card treatments (Classic Paper, Classic Foil, Stonefoil, etc.)
 - Confidence should be lower if information is ambiguous
 
 Return ONLY valid JSON, no markdown or extra text."""
@@ -532,35 +574,51 @@ Return ONLY valid JSON, no markdown or extra text."""
         elif "lot" in title_lower or "bundle" in title_lower:
             product_type = "Lot"
 
-        # Detect condition
-        condition = None
-        if product_type in ["Box", "Pack"]:
-            if "sealed" in title_lower or "factory sealed" in title_lower:
-                condition = "Sealed"
-            elif "opened" in title_lower or "unsealed" in title_lower:
-                condition = "Unsealed"
+        # Detect treatment based on product type
+        is_sealed_product = product_type in ["Box", "Pack", "Lot", "Bundle"]
 
-        # Detect treatment
-        treatment = "Classic Paper"
-        if "foil" in title_lower and "stone" in title_lower:
-            treatment = "Stonefoil"
-        elif "foil" in title_lower and "formless" in title_lower:
-            treatment = "Formless Foil"
-        elif "foil" in title_lower:
-            treatment = "Classic Foil"
-        elif "serialized" in title_lower:
-            treatment = "OCM Serialized"
-        elif "prerelease" in title_lower:
-            treatment = "Prerelease"
-        elif "promo" in title_lower:
-            treatment = "Promo"
-        elif "proof" in title_lower or "sample" in title_lower:
-            treatment = "Proof/Sample"
+        if is_sealed_product:
+            # Sealed product treatments
+            if "factory sealed" in title_lower:
+                treatment = "Factory Sealed"
+            elif "sealed" in title_lower:
+                treatment = "Sealed"
+            elif "new in box" in title_lower or "nib" in title_lower or "brand new" in title_lower:
+                treatment = "New"
+            elif "unopened" in title_lower:
+                treatment = "Unopened"
+            elif "open box" in title_lower or "opened" in title_lower:
+                treatment = "Open Box"
+            elif "used" in title_lower:
+                treatment = "Used"
+            else:
+                # Default for sealed products
+                treatment = "Sealed"
+        else:
+            # Single card treatments
+            if "foil" in title_lower and "stone" in title_lower:
+                treatment = "Stonefoil"
+            elif "foil" in title_lower and "formless" in title_lower:
+                treatment = "Formless Foil"
+            elif "foil" in title_lower or "holo" in title_lower:
+                treatment = "Classic Foil"
+            elif "serialized" in title_lower or re.search(r'/\d{2,3}\b', title_lower):
+                treatment = "OCM Serialized"
+            elif "prerelease" in title_lower:
+                treatment = "Prerelease"
+            elif "promo" in title_lower:
+                treatment = "Promo"
+            elif "proof" in title_lower or "sample" in title_lower:
+                treatment = "Proof/Sample"
+            elif "error" in title_lower or "errata" in title_lower:
+                treatment = "Error/Errata"
+            else:
+                # Default for single cards
+                treatment = "Classic Paper"
 
         return {
             "quantity": quantity,
             "product_type": product_type,
-            "condition": condition,
             "treatment": treatment,
             "confidence": 0.6  # Lower confidence for fallback
         }

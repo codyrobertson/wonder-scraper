@@ -93,23 +93,27 @@ def _bulk_check_indexed(
 
     return indexed_indices
 
-def parse_search_results(html_content: str, card_id: int = 0, card_name: str = "", target_rarity: str = "", return_all: bool = False) -> List[MarketPrice]:
+def parse_search_results(html_content: str, card_id: int = 0, card_name: str = "", target_rarity: str = "", return_all: bool = False, product_type: str = "Single") -> List[MarketPrice]:
     """
     Parses eBay HTML search results and extracts market prices (Sold listings).
 
     Args:
         return_all: If True, returns all valid listings (for stats).
                    If False, returns only new listings not in DB (for saving).
+        product_type: Type of product (Single, Box, Pack, Lot) - affects treatment detection.
     """
     return _parse_generic_results(html_content, card_id, listing_type="sold",
                                  card_name=card_name, target_rarity=target_rarity,
-                                 return_all=return_all)
+                                 return_all=return_all, product_type=product_type)
 
-def parse_active_results(html_content: str, card_id: int = 0, card_name: str = "", target_rarity: str = "") -> List[MarketPrice]:
+def parse_active_results(html_content: str, card_id: int = 0, card_name: str = "", target_rarity: str = "", product_type: str = "Single") -> List[MarketPrice]:
     """
     Parses eBay HTML search results for ACTIVE listings.
+
+    Args:
+        product_type: Type of product (Single, Box, Pack, Lot) - affects treatment detection.
     """
-    return _parse_generic_results(html_content, card_id, listing_type="active", card_name=card_name, target_rarity=target_rarity)
+    return _parse_generic_results(html_content, card_id, listing_type="active", card_name=card_name, target_rarity=target_rarity, product_type=product_type)
 
 def _extract_item_details(item) -> Tuple[Optional[str], Optional[str]]:
     """
@@ -145,22 +149,43 @@ def parse_total_results(html_content: str) -> int:
             return int(match.group(1).replace(',', ''))
     return 0
 
-def _detect_treatment(title: str) -> str:
+def _detect_treatment(title: str, product_type: str = "Single") -> str:
     """
-    Detects card treatment based on title keywords.
+    Detects treatment based on title keywords.
+    For singles: card treatments (Foil, Serialized, etc.)
+    For boxes/packs/lots: product condition (Sealed, New, etc.)
     """
     title_lower = title.lower()
-    
+
+    # Handle sealed products (Box, Pack, Lot, Bundle)
+    if product_type in ("Box", "Pack", "Lot", "Bundle"):
+        # Check for sealed/new indicators (higher priority)
+        if "factory sealed" in title_lower or "factory-sealed" in title_lower:
+            return "Factory Sealed"
+        if "sealed" in title_lower:
+            return "Sealed"
+        if "new" in title_lower and ("brand new" in title_lower or "new sealed" in title_lower or "new in box" in title_lower or "nib" in title_lower):
+            return "New"
+        if "unopened" in title_lower:
+            return "Unopened"
+        if "open box" in title_lower or "opened" in title_lower:
+            return "Open Box"
+        if "used" in title_lower:
+            return "Used"
+        # Default for sealed products - assume sealed if no indicators
+        return "Sealed"
+
+    # Handle singles (cards)
     # 1. Serialized / OCM (Highest Priority)
     if "serialized" in title_lower or "/10" in title_lower or "/25" in title_lower or "/50" in title_lower or "/75" in title_lower or "/99" in title_lower or "ocm" in title_lower:
         return "OCM Serialized"
-        
+
     # 2. Special Foils
     if "stonefoil" in title_lower or "stone foil" in title_lower:
         return "Stonefoil"
     if "formless" in title_lower:
         return "Formless Foil"
-        
+
     # 3. Other Variants
     if "prerelease" in title_lower:
         return "Prerelease"
@@ -170,12 +195,12 @@ def _detect_treatment(title: str) -> str:
         return "Proof/Sample"
     if "errata" in title_lower or "error" in title_lower:
         return "Error/Errata"
-        
+
     # 4. Classic Foil
     if "foil" in title_lower or "holo" in title_lower or "refractor" in title_lower:
         return "Classic Foil"
-        
-    # 5. Default
+
+    # 5. Default for singles
     return "Classic Paper"
 
 def _is_valid_match(title: str, card_name: str, target_rarity: str = "") -> bool:
@@ -193,15 +218,24 @@ def _is_valid_match(title: str, card_name: str, target_rarity: str = "") -> bool
     # CRITICAL: Reject non-Wonders TCG products that might match on keywords
     # e.g., "The Prisoner" should NOT match "Harry Potter Prisoner of Azkaban"
     non_wonders_keywords = [
-        # Other TCGs
-        'harry potter', 'pokemon', 'yu-gi-oh', 'yugioh', 'yu gi oh', 'magic the gathering',
-        'mtg ', ' mtg', 'flesh and blood', 'fab ', 'one piece', 'dragon ball',
-        'digimon', 'cardfight', 'weiss schwarz', 'force of will', 'keyforge',
+        # Other TCGs (include accent variations)
+        'harry potter', 'pokemon', 'pokémon', 'poke mon', 'yu-gi-oh', 'yugioh', 'yu gi oh',
+        'magic the gathering', 'mtg ', ' mtg', 'flesh and blood', 'fab ', 'one piece',
+        'dragon ball', 'digimon', 'cardfight', 'weiss schwarz', 'force of will', 'keyforge',
         'lorcana', 'metazoo', 'sorcery contested', 'star wars', 'lord of the rings',
         'universus', 'ufs ', 'naruto', 'my hero academia', 'union arena',
+        # Pokemon-specific set names and terms
+        'shining fates', 'evolving skies', 'scarlet & violet', 'scarlet violet',
+        'prismatic evolutions', 'prismatic', 'sword and shield', 'sword shield',
+        'paldea', 'obsidian flames', 'paradox rift', 'temporal forces', 'twilight masquerade',
+        'surging sparks', 'shrouded fable', 'stellar crown', 'crown zenith', 'vivid voltage',
+        'celebrations', 'black star promo', 'swsh',
+        ' etb ', 'etb ', ' etb',  # Elite Trainer Box (Pokemon term)
+        'elite trainer',  # Catches "Elite Trainer Box" variants
         # Game-specific terms that indicate non-Wonders
         'azkaban', 'hogwarts', 'pikachu', 'charizard', 'blue-eyes', 'dark magician',
         'planeswalker', 'earthbound', 'maze of millennia', 'duelist', 'konami',
+        'eevee', 'mewtwo', 'bulbasaur', 'squirtle', 'jigglypuff', 'snorlax', 'gengar',
         # Sports cards
         'topps', 'panini', 'upper deck', 'bowman', 'prizm', 'donruss',
         'nba', 'nfl', 'mlb', 'nhl', 'fifa', 'ufc',
@@ -488,7 +522,7 @@ def _clean_title_text(title: str) -> str:
             
     return title.strip()
 
-def _parse_generic_results(html_content: str, card_id: int, listing_type: str, card_name: str = "", target_rarity: str = "", return_all: bool = False) -> List[MarketPrice]:
+def _parse_generic_results(html_content: str, card_id: int, listing_type: str, card_name: str = "", target_rarity: str = "", return_all: bool = False, product_type: str = "Single") -> List[MarketPrice]:
     soup = BeautifulSoup(html_content, "lxml")
     items = soup.select("li.s-item, li.s-card")
 
@@ -618,7 +652,7 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
         # Fallback to rule-based treatment detection if AI extraction has low confidence
         treatment = extracted_data["treatment"]
         if extracted_data["confidence"] < 0.7:
-            treatment = _detect_treatment(metadata["title"])
+            treatment = _detect_treatment(metadata["title"], product_type)
 
         mp = MarketPrice(
             card_id=card_id,

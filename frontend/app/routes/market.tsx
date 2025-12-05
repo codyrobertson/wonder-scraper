@@ -41,6 +41,7 @@ function MarketAnalysis() {
   const navigate = useNavigate()
   const [sorting, setSorting] = useState<SortingState>([])
   const [timeFrame, setTimeFrame] = useState('30d')
+  const [hideLowSignal, setHideLowSignal] = useState(true)
 
   // Fetch treatment price floors
   const { data: treatments } = useQuery({
@@ -55,19 +56,36 @@ function MarketAnalysis() {
     queryKey: ['market-overview', timeFrame],
     queryFn: async () => {
         const data = await api.get(`market/overview?time_period=${timeFrame}`).json<any[]>()
-        return data.map(c => ({
-            ...c,
-            latest_price: c.latest_price ?? 0,
-            volume_30d: c.volume_period ?? 0, // Using period volume
-            volume_change: c.volume_change ?? 0,
-            price_delta_24h: c.price_delta_period ?? 0,
-            deal_rating: c.deal_rating ?? 0,
-            market_cap: (c.latest_price ?? 0) * (c.volume_30d ?? 0)
-        })) as MarketCard[]
+        return data.map(c => {
+            // Cap trend percentage at ±100% to avoid crazy numbers
+            let priceDelta = c.price_delta_period ?? 0
+            priceDelta = Math.max(-100, Math.min(100, priceDelta))
+
+            // Only show trend if there's enough volume (at least 2 sales)
+            const volumePeriod = c.volume_period ?? 0
+            if (volumePeriod < 2) {
+                priceDelta = 0
+            }
+
+            return {
+                ...c,
+                latest_price: c.latest_price ?? 0,
+                volume_30d: volumePeriod,
+                volume_change: c.volume_change ?? 0,
+                price_delta_24h: priceDelta,
+                deal_rating: c.deal_rating ?? 0,
+                market_cap: (c.latest_price ?? 0) * volumePeriod
+            }
+        }) as MarketCard[]
     }
   })
 
-  const cards = useMemo(() => rawCards || [], [rawCards])
+  // Filter out low signal cards (no confirmed sales)
+  const cards = useMemo(() => {
+    if (!rawCards) return []
+    if (!hideLowSignal) return rawCards
+    return rawCards.filter(c => (c.volume_30d ?? 0) > 0)
+  }, [rawCards, hideLowSignal])
 
   // Compute Stats
   const metrics = useMemo(() => {
@@ -126,12 +144,19 @@ function MarketAnalysis() {
       },
       {
           accessorKey: 'price_delta_24h',
-          header: ({ column }) => <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>24H %</div>,
-          cell: ({ row }) => (
-              <div className={clsx("text-right font-mono font-bold", row.original.price_delta_24h >= 0 ? "text-emerald-500" : "text-red-500")}>
-                  {row.original.price_delta_24h > 0 ? '+' : ''}{row.original.price_delta_24h.toFixed(2)}%
-              </div>
-          )
+          header: ({ column }) => <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>TREND</div>,
+          cell: ({ row }) => {
+              const delta = row.original.price_delta_24h
+              // Show dash if no meaningful trend data
+              if (delta === 0) {
+                  return <div className="text-right font-mono text-muted-foreground">-</div>
+              }
+              return (
+                  <div className={clsx("text-right font-mono font-bold", delta > 0 ? "text-emerald-500" : "text-red-500")}>
+                      {delta > 0 ? '↑' : '↓'}{Math.abs(delta).toFixed(1)}%
+                  </div>
+              )
+          }
       },
       {
           accessorKey: 'volume_30d',
@@ -226,13 +251,23 @@ function MarketAnalysis() {
                             </SelectContent>
                         </Select>
                     </div>
+                    {/* Low Signal Filter */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none ml-4">
+                        <input
+                            type="checkbox"
+                            checked={hideLowSignal}
+                            onChange={e => setHideLowSignal(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded border-border bg-background text-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">Hide Low Signal</span>
+                    </label>
                 </div>
                 <div className="flex gap-4 text-xs text-muted-foreground uppercase font-bold">
                     <div className="flex items-center gap-1">
                         <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
                         Live
                     </div>
-                    <div>{cards.length} Assets Tracked</div>
+                    <div>{cards.length} of {rawCards?.length || 0} Assets</div>
                 </div>
             </div>
 
@@ -307,7 +342,7 @@ function MarketAnalysis() {
                                 <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(c.id) } })}>
                                     <div className="truncate w-24 text-xs font-bold">{c.name}</div>
                                     <div className="text-right">
-                                        <div className="text-emerald-500 text-xs font-mono font-bold">+{c.price_delta_24h.toFixed(1)}%</div>
+                                        <div className="text-emerald-500 text-xs font-mono font-bold">↑{Math.abs(c.price_delta_24h).toFixed(1)}%</div>
                                     </div>
                                 </div>
                             ))}
@@ -324,8 +359,8 @@ function MarketAnalysis() {
                             {topLosers.slice(0, 5).map(c => (
                                 <div key={c.id} className="p-2 flex justify-between items-center hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: String(c.id) } })}>
                                     <div className="truncate w-24 text-xs font-bold">{c.name}</div>
-                                <div className="text-right">
-                                        <div className="text-red-500 text-xs font-mono font-bold">{c.price_delta_24h.toFixed(1)}%</div>
+                                    <div className="text-right">
+                                        <div className="text-red-500 text-xs font-mono font-bold">↓{Math.abs(c.price_delta_24h).toFixed(1)}%</div>
                                     </div>
                                 </div>
                             ))}

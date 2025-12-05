@@ -9,7 +9,7 @@ from app.scraper.utils import build_ebay_url
 from app.scraper.ebay import parse_active_results, parse_total_results
 from typing import Tuple, Optional
 
-async def scrape_active_data(card_name: str, card_id: int, search_term: Optional[str] = None, save_to_db: bool = True) -> Tuple[float, int, float]:
+async def scrape_active_data(card_name: str, card_id: int, search_term: Optional[str] = None, save_to_db: bool = True, product_type: str = "Single") -> Tuple[float, int, float]:
     """
     Scrapes active listings to find:
     - Lowest Ask (min price)
@@ -33,7 +33,7 @@ async def scrape_active_data(card_name: str, card_id: int, search_term: Optional
         # Use Pydoll browser (handles eBay's bot detection)
         html = await get_page_content(url)
         # Validate against pure card_name, not search_term
-        items = parse_active_results(html, card_id, card_name=card_name)
+        items = parse_active_results(html, card_id, card_name=card_name, product_type=product_type)
 
         if not items:
             return (0.0, 0, 0.0)

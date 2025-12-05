@@ -43,6 +43,7 @@ function Home() {
   const [globalFilter, setGlobalFilter] = useState('')
   const [timePeriod, setTimePeriod] = useState<string>('24h')
   const [productType, setProductType] = useState<string>('all')
+  const [hideLowSignal, setHideLowSignal] = useState<boolean>(true)  // Hide low signal cards by default
   const [trackingCard, setTrackingCard] = useState<Card | null>(null)
   const [trackForm, setTrackForm] = useState({ quantity: 1, purchase_price: 0 })
   const navigate = useNavigate()
@@ -161,14 +162,13 @@ function Home() {
                     {hasPrice ? `$${price.toFixed(2)}` : '---'}
                     {isAskOnly && <span className="text-[9px] ml-1">(ask)</span>}
                 </span>
-                {hasPrice && (
+                {hasPrice && delta !== 0 && (
                     <span className={clsx(
                         "text-[10px] font-mono px-1 py-0.5 rounded",
                         delta > 0 ? "text-emerald-400 bg-emerald-500/10" :
-                        delta < 0 ? "text-red-400 bg-red-500/10" :
-                        "text-muted-foreground/50"
+                        "text-red-400 bg-red-500/10"
                     )}>
-                        {delta > 0 ? '+' : ''}{delta.toFixed(1)}%
+                        {delta > 0 ? '↑' : '↓'}{Math.abs(delta).toFixed(1)}%
                     </span>
                 )}
             </div>
@@ -328,8 +328,16 @@ function Home() {
     }
   ], [user])
 
+  // Filter out low signal cards (no confirmed sales, only ask prices)
+  const filteredCards = useMemo(() => {
+    if (!cards) return []
+    if (!hideLowSignal) return cards
+    // Low signal = volume_30d is 0 (no confirmed sales in 30 days)
+    return cards.filter(c => (c.volume_30d ?? 0) > 0)
+  }, [cards, hideLowSignal])
+
   const table = useReactTable({
-    data: cards || [],
+    data: filteredCards,
     columns,
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
@@ -442,12 +450,22 @@ function Home() {
                     <option value="all">All Time</option>
                 </select>
             </div>
+            {/* Low Signal Filter */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                    type="checkbox"
+                    checked={hideLowSignal}
+                    onChange={e => setHideLowSignal(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-border bg-background text-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Hide Low Signal</span>
+            </label>
         </div>
         </div>
       </div>
 
                 <div className="text-xs text-muted-foreground font-mono hidden xl:block shrink-0">
-                    Showing top {cards?.length || 0} assets
+                    Showing {filteredCards.length} of {cards?.length || 0} assets
                 </div>
         </div>
                 {isLoading ? (

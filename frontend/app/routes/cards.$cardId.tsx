@@ -276,7 +276,16 @@ function CardDetail() {
       const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length
       const firstPrice = prices[0]
       const lastPrice = prices[prices.length - 1]
-      const priceChange = firstPrice > 0 ? ((lastPrice - firstPrice) / firstPrice) * 100 : 0
+      let priceChange = firstPrice > 0 ? ((lastPrice - firstPrice) / firstPrice) * 100 : 0
+
+      // Cap trend at ±100% to avoid crazy numbers
+      priceChange = Math.max(-100, Math.min(100, priceChange))
+
+      // Only show meaningful trends (at least 2 data points)
+      if (chartData.length < 2) {
+          priceChange = 0
+      }
+
       return { minPrice, maxPrice, avgPrice, priceChange, totalSales: chartData.length }
   }, [chartData])
   
@@ -408,9 +417,13 @@ function CardDetail() {
                             <TrendingUp className="w-3 h-3" />
                             {timeRange} Trend
                         </div>
-                        <div className={clsx("text-xl font-mono font-bold", (chartStats?.priceChange ?? 0) >= 0 ? "text-emerald-500" : "text-red-500")}>
-                            {(chartStats?.priceChange ?? 0) > 0 ? '+' : ''}{(chartStats?.priceChange ?? 0).toFixed(2)}%
-                        </div>
+                        {(chartStats?.priceChange ?? 0) === 0 ? (
+                            <div className="text-xl font-mono text-muted-foreground">-</div>
+                        ) : (
+                            <div className={clsx("text-xl font-mono font-bold", (chartStats?.priceChange ?? 0) > 0 ? "text-emerald-500" : "text-red-500")}>
+                                {(chartStats?.priceChange ?? 0) > 0 ? '↑' : '↓'}{Math.abs(chartStats?.priceChange ?? 0).toFixed(1)}%
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -434,12 +447,14 @@ function CardDetail() {
                                                             <span className="text-muted-foreground/60"> of {totalAllTimeSales}</span>
                                                         )}
                                                     </span>
-                                                    <span className={clsx(
-                                                        "font-bold",
-                                                        chartStats.priceChange >= 0 ? "text-emerald-500" : "text-red-500"
-                                                    )}>
-                                                        {chartStats.priceChange >= 0 ? '+' : ''}{chartStats.priceChange.toFixed(1)}%
-                                                    </span>
+                                                    {chartStats.priceChange !== 0 && (
+                                                        <span className={clsx(
+                                                            "font-bold",
+                                                            chartStats.priceChange > 0 ? "text-emerald-500" : "text-red-500"
+                                                        )}>
+                                                            {chartStats.priceChange > 0 ? '↑' : '↓'}{Math.abs(chartStats.priceChange).toFixed(1)}%
+                                                        </span>
+                                                    )}
                                                 </>
                                             ) : totalAllTimeSales > 0 ? (
                                                 <span className="text-muted-foreground">
