@@ -1,279 +1,275 @@
 """
-AI-powered market insights generator for Discord updates.
+Market insights generator for Discord updates.
 
-Analyzes market data and generates human-readable insights about:
-- Price trends (movers, shakers)
-- Deals (cards selling below floor)
-- Volume leaders
-- Market health metrics
+Uses the same data and format as the market report script.
+Generates formatted reports for 2x daily Discord posts.
 """
 
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
-from sqlmodel import Session, select, text
-from openai import OpenAI
-from dotenv import load_dotenv
+from typing import Dict, Any, Optional
+from sqlmodel import Session
+from sqlalchemy import text
 
 from app.db import engine
-from app.models.card import Card
-from app.models.market import MarketPrice, MarketSnapshot
 
-load_dotenv()
+
+def bar(value: float, max_value: float, width: int = 15) -> str:
+    """Create ASCII bar for discord output."""
+    if max_value == 0:
+        return "░" * width
+    fill_count = int((value / max_value) * width)
+    return "█" * fill_count + "░" * (width - fill_count)
+
+
+def format_currency(val: float) -> str:
+    """Format value as currency."""
+    return f"${val:,.2f}"
 
 
 class MarketInsightsGenerator:
-    """Generates AI-powered market insights from price data."""
+    """Generates market insights using the same format as the report script."""
 
-    def __init__(self):
-        api_key = os.getenv("OPENROUTER_API_KEY")
-        if not api_key:
-            print("WARNING: OPENROUTER_API_KEY not set, market insights will be basic")
-            self.client = None
-        else:
-            self.client = OpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key=api_key
-            )
-            self.model = "openai/gpt-4o-mini"
-
-    def gather_market_data(self) -> Dict[str, Any]:
-        """Gather market data for analysis using efficient bulk queries."""
+    def gather_market_data(self, days: int = 1) -> Dict[str, Any]:
+        """Gather market data for the report."""
         with Session(engine) as session:
             now = datetime.utcnow()
-            day_ago = now - timedelta(days=1)
-            week_ago = now - timedelta(days=7)
+            period_start = now - timedelta(days=days)
+            prev_period_start = period_start - timedelta(days=days)
 
-            # Get all cards
-            cards = session.exec(select(Card)).all()
-            card_map = {c.id: c for c in cards}
-
-            # BULK: Get last sale per card (single query)
-            last_sales = session.execute(text("""
-                SELECT DISTINCT ON (card_id) card_id, price
-                FROM marketprice
-                WHERE listing_type = 'sold' AND sold_date IS NOT NULL
-                ORDER BY card_id, sold_date DESC
-            """)).all()
-            last_sale_map = {r[0]: r[1] for r in last_sales}
-
-            # BULK: Get 7-day average per card (single query)
-            avg_7d_results = session.execute(text("""
-                SELECT card_id, AVG(price) as avg_price
-                FROM marketprice
-                WHERE listing_type = 'sold' AND sold_date >= :week_ago
-                GROUP BY card_id
-            """), {"week_ago": week_ago}).all()
-            avg_7d_map = {r[0]: r[1] for r in avg_7d_results}
-
-            # BULK: Get floor prices (single query)
-            floors = session.execute(text("""
-                SELECT card_id, MIN(price) as floor
-                FROM marketprice
-                WHERE listing_type = 'active'
-                GROUP BY card_id
-            """)).all()
-            floor_map = {r[0]: r[1] for r in floors}
-
-            # Recent sales for deals analysis
-            recent_sales = session.execute(text("""
-                SELECT card_id, price, sold_date, treatment
-                FROM marketprice
-                WHERE listing_type = 'sold'
-                AND scraped_at >= :day_ago
-                ORDER BY sold_date DESC
-                LIMIT 100
-            """), {"day_ago": day_ago}).all()
-
-            # Build price changes list
-            price_changes = []
-            for card in cards:
-                last_sale = last_sale_map.get(card.id)
-                avg_7d = avg_7d_map.get(card.id)
-                floor = floor_map.get(card.id)
-
-                if last_sale and avg_7d and avg_7d > 0:
-                    pct_change = ((last_sale - avg_7d) / avg_7d) * 100
-                    price_changes.append({
-                        "name": card.name,
-                        "product_type": card.product_type if hasattr(card, 'product_type') else 'Single',
-                        "last_sale": last_sale,
-                        "avg_7d": avg_7d,
-                        "pct_change": pct_change,
-                        "floor": floor
-                    })
-
-            # Sort by change magnitude
-            gainers = sorted([p for p in price_changes if p["pct_change"] > 5],
-                           key=lambda x: x["pct_change"], reverse=True)[:10]
-            losers = sorted([p for p in price_changes if p["pct_change"] < -5],
-                          key=lambda x: x["pct_change"])[:10]
-
-            # Deals: cards that sold significantly below floor
-            deals = []
-            for sale in recent_sales:
-                card = card_map.get(sale[0])
-                if not card:
-                    continue
-
-                # Use pre-fetched floor from bulk query
-                floor = floor_map.get(sale[0])
-
-                if floor and sale[1] < floor * 0.85:  # Sold 15%+ below floor
-                    deals.append({
-                        "name": card.name,
-                        "sold_price": sale[1],
-                        "floor": floor,
-                        "discount_pct": ((floor - sale[1]) / floor) * 100,
-                        "treatment": sale[3]
-                    })
-
-            deals = sorted(deals, key=lambda x: x["discount_pct"], reverse=True)[:10]
-
-            # Volume leaders (most sales in 24h)
-            volume_24h = session.execute(text("""
-                SELECT card_id, COUNT(*) as sales, SUM(price) as volume_usd
-                FROM marketprice
-                WHERE listing_type = 'sold'
-                AND scraped_at >= :day_ago
-                GROUP BY card_id
-                ORDER BY sales DESC
-                LIMIT 10
-            """), {"day_ago": day_ago}).all()
-
-            volume_leaders = []
-            for v in volume_24h:
-                card = card_map.get(v[0])
-                if card:
-                    volume_leaders.append({
-                        "name": card.name,
-                        "sales": v[1],
-                        "volume_usd": v[2]
-                    })
-
-            # Overall market stats
-            total_sales_24h = session.execute(text("""
-                SELECT COUNT(*), SUM(price) FROM marketprice
-                WHERE listing_type = 'sold' AND scraped_at >= :day_ago
-            """), {"day_ago": day_ago}).first()
-
-            total_listings = session.execute(text("""
-                SELECT COUNT(*) FROM marketprice WHERE listing_type = 'active'
-            """)).scalar()
-
-            return {
-                "timestamp": now.isoformat(),
-                "gainers": gainers,
-                "losers": losers,
-                "deals": deals,
-                "volume_leaders": volume_leaders,
-                "market_stats": {
-                    "sales_24h": total_sales_24h[0] or 0,
-                    "volume_usd_24h": total_sales_24h[1] or 0,
-                    "active_listings": total_listings or 0
-                }
+            data = {
+                "generated_at": now,
+                "period_start": period_start,
+                "period_end": now,
+                "days": days,
             }
 
+            # Total sales this period
+            total = session.execute(text("""
+                SELECT COUNT(*), COALESCE(SUM(price), 0), COALESCE(AVG(price), 0)
+                FROM marketprice WHERE listing_type = 'sold' AND sold_date >= :start
+            """), {"start": period_start}).first()
+
+            # Previous period for comparison
+            prev_total = session.execute(text("""
+                SELECT COUNT(*), COALESCE(SUM(price), 0)
+                FROM marketprice WHERE listing_type = 'sold'
+                AND sold_date >= :prev_start AND sold_date < :start
+            """), {"start": period_start, "prev_start": prev_period_start}).first()
+
+            data["summary"] = {
+                "total_sales": total[0],
+                "total_volume": total[1],
+                "avg_price": total[2],
+                "prev_sales": prev_total[0],
+                "prev_volume": prev_total[1],
+                "sales_change_pct": ((total[0] - prev_total[0]) / prev_total[0] * 100) if prev_total[0] > 0 else 0,
+                "volume_change_pct": ((total[1] - prev_total[1]) / prev_total[1] * 100) if prev_total[1] > 0 else 0,
+            }
+
+            # Daily breakdown (for weekly reports)
+            if days >= 7:
+                daily = session.execute(text("""
+                    SELECT DATE(sold_date) as day, COUNT(*), SUM(price)
+                    FROM marketprice WHERE listing_type = 'sold' AND sold_date >= :start
+                    GROUP BY DATE(sold_date) ORDER BY day
+                """), {"start": period_start}).all()
+                data["daily"] = [{"date": row[0], "sales": row[1], "volume": row[2]} for row in daily]
+            else:
+                data["daily"] = []
+
+            # By product type
+            by_type = session.execute(text("""
+                SELECT c.product_type, COUNT(*), SUM(mp.price)
+                FROM marketprice mp JOIN card c ON mp.card_id = c.id
+                WHERE mp.listing_type = 'sold' AND mp.sold_date >= :start
+                GROUP BY c.product_type ORDER BY SUM(mp.price) DESC
+            """), {"start": period_start}).all()
+            data["by_type"] = [{"type": row[0], "sales": row[1], "volume": row[2]} for row in by_type]
+
+            # Top sellers by volume
+            top_vol = session.execute(text("""
+                SELECT c.name, c.product_type, COUNT(*), SUM(mp.price), AVG(mp.price)
+                FROM marketprice mp JOIN card c ON mp.card_id = c.id
+                WHERE mp.listing_type = 'sold' AND mp.sold_date >= :start
+                GROUP BY c.id, c.name, c.product_type ORDER BY SUM(mp.price) DESC LIMIT 5
+            """), {"start": period_start}).all()
+            data["top_volume"] = [
+                {"name": row[0], "type": row[1], "sales": row[2], "volume": row[3], "avg": row[4]}
+                for row in top_vol
+            ]
+
+            # Price trends (gainers) - compare to previous period
+            gainers = session.execute(text("""
+                WITH this_period AS (
+                    SELECT card_id, AVG(price) as avg_price, COUNT(*) as cnt
+                    FROM marketprice WHERE listing_type = 'sold' AND sold_date >= :start
+                    GROUP BY card_id HAVING COUNT(*) >= 2
+                ),
+                last_period AS (
+                    SELECT card_id, AVG(price) as avg_price
+                    FROM marketprice WHERE listing_type = 'sold'
+                    AND sold_date >= :prev_start AND sold_date < :start
+                    GROUP BY card_id
+                )
+                SELECT c.name, tp.avg_price, lp.avg_price,
+                       ((tp.avg_price - lp.avg_price) / lp.avg_price * 100) as pct_change, tp.cnt
+                FROM this_period tp
+                JOIN last_period lp ON tp.card_id = lp.card_id
+                JOIN card c ON tp.card_id = c.id
+                WHERE lp.avg_price > 0
+                ORDER BY pct_change DESC LIMIT 5
+            """), {"start": period_start, "prev_start": prev_period_start}).all()
+            data["gainers"] = [
+                {"name": row[0], "current": row[1], "previous": row[2], "change_pct": row[3], "sales": row[4]}
+                for row in gainers if row[3] > 0
+            ]
+
+            # Price trends (losers)
+            losers = session.execute(text("""
+                WITH this_period AS (
+                    SELECT card_id, AVG(price) as avg_price, COUNT(*) as cnt
+                    FROM marketprice WHERE listing_type = 'sold' AND sold_date >= :start
+                    GROUP BY card_id HAVING COUNT(*) >= 2
+                ),
+                last_period AS (
+                    SELECT card_id, AVG(price) as avg_price
+                    FROM marketprice WHERE listing_type = 'sold'
+                    AND sold_date >= :prev_start AND sold_date < :start
+                    GROUP BY card_id
+                )
+                SELECT c.name, tp.avg_price, lp.avg_price,
+                       ((tp.avg_price - lp.avg_price) / lp.avg_price * 100) as pct_change, tp.cnt
+                FROM this_period tp
+                JOIN last_period lp ON tp.card_id = lp.card_id
+                JOIN card c ON tp.card_id = c.id
+                WHERE lp.avg_price > 0
+                ORDER BY pct_change ASC LIMIT 5
+            """), {"start": period_start, "prev_start": prev_period_start}).all()
+            data["losers"] = [
+                {"name": row[0], "current": row[1], "previous": row[2], "change_pct": row[3], "sales": row[4]}
+                for row in losers if row[3] < 0
+            ]
+
+            # Hot deals - sold below floor
+            deals = session.execute(text("""
+                WITH floors AS (
+                    SELECT card_id, MIN(price) as floor
+                    FROM marketprice WHERE listing_type = 'active'
+                    GROUP BY card_id
+                )
+                SELECT c.name, mp.price as sold_price, f.floor,
+                       ((f.floor - mp.price) / f.floor * 100) as discount_pct
+                FROM marketprice mp
+                JOIN card c ON mp.card_id = c.id
+                JOIN floors f ON mp.card_id = f.card_id
+                WHERE mp.listing_type = 'sold' AND mp.sold_date >= :start
+                AND mp.price < f.floor * 0.80
+                ORDER BY discount_pct DESC LIMIT 5
+            """), {"start": period_start}).all()
+            data["deals"] = [
+                {"name": row[0], "sold_price": row[1], "floor": row[2], "discount_pct": row[3]}
+                for row in deals
+            ]
+
+            # Market health
+            active = session.execute(text("""
+                SELECT COUNT(*), COALESCE(AVG(price), 0), COALESCE(MIN(price), 0), COALESCE(MAX(price), 0)
+                FROM marketprice WHERE listing_type = 'active'
+            """)).first()
+
+            unique_cards = session.execute(text("""
+                SELECT COUNT(DISTINCT card_id) FROM marketprice WHERE listing_type = 'active'
+            """)).scalar()
+
+            data["market_health"] = {
+                "active_listings": active[0],
+                "unique_cards": unique_cards,
+                "avg_list_price": active[1],
+                "min_price": active[2],
+                "max_price": active[3],
+            }
+
+            return data
+
     def generate_insights(self, data: Dict[str, Any]) -> str:
-        """Generate AI-powered market insights from gathered data."""
-        if not self.client:
-            return self._generate_basic_insights(data)
-
-        prompt = f"""You are a market analyst for "Wonders of the First" trading card game.
-Generate a concise, engaging Discord market update based on this data.
-
-**Market Data (Last 24 Hours):**
-
-📈 **Top Gainers** (price vs 7-day avg):
-{self._format_movers(data['gainers'])}
-
-📉 **Top Losers**:
-{self._format_movers(data['losers'])}
-
-🔥 **Hot Deals** (sold below floor):
-{self._format_deals(data['deals'])}
-
-📊 **Volume Leaders**:
-{self._format_volume(data['volume_leaders'])}
-
-**Overall Stats:**
-- Sales (24h): {data['market_stats']['sales_24h']}
-- Volume (24h): ${data['market_stats']['volume_usd_24h']:,.2f}
-- Active Listings: {data['market_stats']['active_listings']}
-
----
-
-Write a Discord market update with:
-1. A catchy opening line about the market mood (1 sentence)
-2. 2-3 key highlights (gainers, losers, or deals worth mentioning)
-3. A brief volume/activity summary
-4. One actionable insight or thing to watch
-
-Keep it under 400 words. Use emojis sparingly. Be informative but engaging.
-Format for Discord (use **bold**, bullet points, etc.)."""
-
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a knowledgeable TCG market analyst who writes concise, insightful updates for Discord."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=600
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"AI insights generation failed: {e}")
-            return self._generate_basic_insights(data)
-
-    def _format_movers(self, movers: List[Dict]) -> str:
-        if not movers:
-            return "None significant"
+        """Generate formatted market insights for Discord."""
         lines = []
-        for m in movers[:5]:
-            lines.append(f"- {m['name']}: {m['pct_change']:+.1f}% (${m['last_sale']:.2f} vs ${m['avg_7d']:.2f} avg)")
-        return "\n".join(lines)
 
-    def _format_deals(self, deals: List[Dict]) -> str:
-        if not deals:
-            return "None found"
-        lines = []
-        for d in deals[:5]:
-            lines.append(f"- {d['name']}: ${d['sold_price']:.2f} ({d['discount_pct']:.0f}% below ${d['floor']:.2f} floor)")
-        return "\n".join(lines)
+        period_label = "24h" if data["days"] == 1 else f"{data['days']}-Day"
+        s = data["summary"]
 
-    def _format_volume(self, leaders: List[Dict]) -> str:
-        if not leaders:
-            return "No recent sales"
-        lines = []
-        for v in leaders[:5]:
-            lines.append(f"- {v['name']}: {v['sales']} sales (${v['volume_usd']:.2f})")
-        return "\n".join(lines)
+        # Header
+        lines.append(f"**{period_label} Market Update** • {data['period_end'].strftime('%b %d, %Y')}")
+        lines.append("")
 
-    def _generate_basic_insights(self, data: Dict[str, Any]) -> str:
-        """Generate basic insights without AI."""
-        lines = ["**Wonders Market Update**\n"]
+        # Summary stats
+        sales_arrow = "📈" if s["sales_change_pct"] >= 0 else "📉"
+        vol_arrow = "📈" if s["volume_change_pct"] >= 0 else "📉"
+        lines.append("```")
+        lines.append("══════════════════════════════════════")
+        lines.append("  MARKET SUMMARY")
+        lines.append("══════════════════════════════════════")
+        lines.append(f"  Sales:   {s['total_sales']:>5}  ({'+' if s['sales_change_pct'] >= 0 else ''}{s['sales_change_pct']:.1f}%)")
+        lines.append(f"  Volume:  {format_currency(s['total_volume']):>10}  ({'+' if s['volume_change_pct'] >= 0 else ''}{s['volume_change_pct']:.1f}%)")
+        lines.append(f"  Avg:     {format_currency(s['avg_price']):>10}")
+        lines.append("```")
 
-        stats = data['market_stats']
-        lines.append(f"📊 **24h Activity**: {stats['sales_24h']} sales | ${stats['volume_usd_24h']:,.2f} volume | {stats['active_listings']} listings\n")
+        # Product type breakdown
+        if data["by_type"]:
+            lines.append("```")
+            lines.append("══════════════════════════════════════")
+            lines.append("  BY PRODUCT TYPE")
+            lines.append("══════════════════════════════════════")
+            max_vol = max(t["volume"] for t in data["by_type"]) if data["by_type"] else 1
+            total_vol = sum(t["volume"] for t in data["by_type"]) if data["by_type"] else 1
+            for t in data["by_type"]:
+                pct = (t["volume"] / total_vol * 100) if total_vol > 0 else 0
+                lines.append(f"  {t['type']:8} │ {bar(t['volume'], max_vol)} │ {pct:4.1f}%")
+            lines.append("```")
 
-        if data['gainers']:
-            lines.append("📈 **Top Gainers**:")
-            for g in data['gainers'][:3]:
-                lines.append(f"  • {g['name']}: {g['pct_change']:+.1f}%")
-            lines.append("")
+        # Top sellers
+        if data["top_volume"]:
+            lines.append("```")
+            lines.append("══════════════════════════════════════")
+            lines.append("  TOP SELLERS")
+            lines.append("══════════════════════════════════════")
+            max_vol = max(t["volume"] for t in data["top_volume"]) if data["top_volume"] else 1
+            for i, t in enumerate(data["top_volume"][:5], 1):
+                name = t["name"][:22]
+                lines.append(f"  {i}. {name:22} │ {t['sales']:2}x │ {format_currency(t['volume']):>9}")
+            lines.append("```")
 
-        if data['losers']:
-            lines.append("📉 **Dropping**:")
-            for l in data['losers'][:3]:
-                lines.append(f"  • {l['name']}: {l['pct_change']:+.1f}%")
-            lines.append("")
+        # Price movers
+        if data["gainers"] or data["losers"]:
+            lines.append("```")
+            lines.append("══════════════════════════════════════")
+            lines.append("  PRICE MOVERS")
+            lines.append("══════════════════════════════════════")
+            if data["gainers"]:
+                for g in data["gainers"][:3]:
+                    name = g["name"][:20]
+                    lines.append(f"  ▲ {name:20} │ +{g['change_pct']:.1f}%")
+            if data["losers"]:
+                for l in data["losers"][:3]:
+                    name = l["name"][:20]
+                    lines.append(f"  ▼ {name:20} │ {l['change_pct']:.1f}%")
+            lines.append("```")
 
-        if data['deals']:
-            lines.append("🔥 **Recent Deals**:")
-            for d in data['deals'][:3]:
-                lines.append(f"  • {d['name']}: ${d['sold_price']:.2f} ({d['discount_pct']:.0f}% below floor)")
+        # Hot deals
+        if data["deals"]:
+            lines.append("```")
+            lines.append("══════════════════════════════════════")
+            lines.append("  🔥 HOT DEALS (below floor)")
+            lines.append("══════════════════════════════════════")
+            for d in data["deals"][:3]:
+                name = d["name"][:22]
+                lines.append(f"  {name:22} │ {format_currency(d['sold_price']):>7} │ {d['discount_pct']:.0f}% off")
+            lines.append("```")
+
+        # Market health footer
+        h = data["market_health"]
+        lines.append(f"*{h['active_listings']:,} active listings • {h['unique_cards']} unique cards*")
 
         return "\n".join(lines)
 
