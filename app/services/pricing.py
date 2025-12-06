@@ -382,7 +382,7 @@ class FairMarketPriceService:
             FROM marketprice
             WHERE card_id = :card_id
               AND listing_type = 'sold'
-              AND sold_date >= :cutoff
+              AND (sold_date >= :cutoff OR sold_date IS NULL)
             GROUP BY COALESCE(NULLIF(treatment, ''), :default_treatment)
             HAVING COUNT(*) >= 1
             ORDER BY median_price ASC

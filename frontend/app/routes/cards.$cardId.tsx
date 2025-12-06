@@ -599,13 +599,8 @@ function CardDetail() {
                                 </div>
                             </div>
                             <div className="hidden md:block border-l border-border pl-8">
-                                <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider flex items-center gap-1">
+                                <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">
                                     FMP
-                                    {card.product_type === 'Single' ? (
-                                        <span className="text-[8px] text-muted-foreground/60">(Base)</span>
-                                    ) : (
-                                        <span className="text-[8px] text-muted-foreground/60">(Median)</span>
-                                    )}
                                 </div>
                                 <div className="text-4xl font-mono font-bold">
                                     ${pricingData?.fair_market_price ? pricingData.fair_market_price.toFixed(2) : card.fair_market_price?.toFixed(2) || '---'}
