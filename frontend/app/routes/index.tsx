@@ -199,16 +199,19 @@ function Home() {
     {
       accessorKey: 'vwap', // Fair price based on recent sales
       header: ({ column }) => (
-        <button
-          className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        >
-          Fair Price
-          <span className="text-muted-foreground/50 hover:text-muted-foreground cursor-help" title="What this card typically sells for based on recent sales">
-            <Info className="h-3 w-3" />
-          </span>
-          <ArrowUpDown className="h-3 w-3" />
-        </button>
+        <div className="relative group flex items-center gap-1 ml-auto">
+          <button
+            className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Fair Price
+            <ArrowUpDown className="h-3 w-3" />
+          </button>
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+            What this card typically sells for
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900"></div>
+          </div>
+        </div>
       ),
       cell: ({ row }) => {
           const fairPrice = row.original.vwap
