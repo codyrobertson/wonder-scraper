@@ -3,8 +3,8 @@ from typing import Any
 import httpx
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, BackgroundTasks
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 
@@ -43,7 +43,33 @@ class ResetPasswordRequest(BaseModel):
 class MessageResponse(BaseModel):
     message: str
 
-@router.post("/login", response_model=Token)
+
+# Cookie settings
+COOKIE_NAME = "access_token"
+COOKIE_MAX_AGE = 60 * 60 * 24 * 7  # 7 days
+COOKIE_SECURE = True  # Set to False for local dev without HTTPS
+COOKIE_SAMESITE = "lax"
+
+
+def set_auth_cookie(response: Response, token: str):
+    """Set httpOnly auth cookie."""
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        max_age=COOKIE_MAX_AGE,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+
+
+def clear_auth_cookie(response: Response):
+    """Clear auth cookie."""
+    response.delete_cookie(key=COOKIE_NAME, path="/")
+
+
+@router.post("/login")
 def login_access_token(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -84,10 +110,40 @@ def login_access_token(
     rate_limiter.record_successful_login(ip)
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return {
-        "access_token": create_access_token(user.email, expires_delta=access_token_expires),
+    token = create_access_token(user.email, expires_delta=access_token_expires)
+
+    # Return token AND set cookie for persistence
+    response = JSONResponse(content={
+        "access_token": token,
         "token_type": "bearer",
+    })
+    set_auth_cookie(response, token)
+    return response
+
+
+@router.post("/logout")
+def logout(response: Response):
+    """Clear auth cookie."""
+    resp = JSONResponse(content={"message": "Logged out successfully"})
+    clear_auth_cookie(resp)
+    return resp
+
+
+@router.get("/me")
+def get_current_user_info(
+    request: Request,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Get current user info from token (header or cookie)."""
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "username": current_user.username,
+        "discord_handle": current_user.discord_handle,
+        "is_active": current_user.is_active,
     }
+
 
 @router.post("/register", response_model=UserResponse)
 def register_user(
@@ -220,10 +276,11 @@ async def callback_discord(code: str, session: Session = Depends(get_session)):
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         token = create_access_token(user.email, expires_delta=access_token_expires)
 
-        # Redirect to Frontend
-        # Using configured frontend URL
+        # Redirect to Frontend with cookie set
         frontend_url = f"{settings.FRONTEND_URL}/auth/callback"
-        return RedirectResponse(f"{frontend_url}?token={token}")
+        response = RedirectResponse(f"{frontend_url}?token={token}")
+        set_auth_cookie(response, token)
+        return response
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
