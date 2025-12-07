@@ -15,3 +15,7 @@ class User(SQLModel, table=True):
     discord_handle: Optional[str] = Field(default=None, nullable=True)
     discord_id: Optional[str] = Field(default=None, nullable=True, sa_column_kwargs={"unique": True})
     bio: Optional[str] = Field(default=None, nullable=True)
+
+    # Password Reset
+    password_reset_token: Optional[str] = Field(default=None, nullable=True, index=True)
+    password_reset_expires: Optional[datetime] = Field(default=None, nullable=True)

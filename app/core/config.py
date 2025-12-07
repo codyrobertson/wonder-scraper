@@ -16,9 +16,13 @@ class Settings(BaseSettings):
     DISCORD_CLIENT_ID: str
     DISCORD_CLIENT_SECRET: str = ""
     DISCORD_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/discord/callback"
-    
+
     # Frontend URL for redirects
     FRONTEND_URL: str = "http://localhost:3000"
+
+    # Resend Email
+    RESEND_API_KEY: str = ""
+    FROM_EMAIL: str = "WondersTracker <noreply@wonderstrader.com>"
     
     model_config = ConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 
