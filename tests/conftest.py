@@ -12,6 +12,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.models.card import Card, Rarity
 from app.models.market import MarketPrice, MarketSnapshot
+from app.models.user import User
+from app.core import security
 
 
 # Use in-memory SQLite for unit tests (fast, isolated)
@@ -226,3 +228,77 @@ def null_sold_date_prices(test_session: Session, sample_cards: List[Card]) -> Li
     test_session.commit()
 
     return prices
+
+
+# ============================================
+# User / Auth Fixtures
+# ============================================
+
+@pytest.fixture
+def sample_user(test_session: Session) -> User:
+    """Create a sample user for testing."""
+    user = User(
+        id=1,
+        email="test@example.com",
+        hashed_password=security.get_password_hash("testpassword123"),
+        is_active=True,
+        is_superuser=False,
+    )
+    test_session.add(user)
+    test_session.commit()
+    test_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def sample_user_with_reset_token(test_session: Session) -> User:
+    """Create a user with a valid password reset token."""
+    import secrets
+    user = User(
+        id=2,
+        email="reset@example.com",
+        hashed_password=security.get_password_hash("oldpassword123"),
+        is_active=True,
+        is_superuser=False,
+        password_reset_token=secrets.token_urlsafe(32),
+        password_reset_expires=datetime.utcnow() + timedelta(hours=1),
+    )
+    test_session.add(user)
+    test_session.commit()
+    test_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def sample_user_with_expired_token(test_session: Session) -> User:
+    """Create a user with an expired password reset token."""
+    import secrets
+    user = User(
+        id=3,
+        email="expired@example.com",
+        hashed_password=security.get_password_hash("oldpassword123"),
+        is_active=True,
+        is_superuser=False,
+        password_reset_token=secrets.token_urlsafe(32),
+        password_reset_expires=datetime.utcnow() - timedelta(hours=1),  # Expired
+    )
+    test_session.add(user)
+    test_session.commit()
+    test_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def inactive_user(test_session: Session) -> User:
+    """Create an inactive user for testing."""
+    user = User(
+        id=4,
+        email="inactive@example.com",
+        hashed_password=security.get_password_hash("testpassword123"),
+        is_active=False,
+        is_superuser=False,
+    )
+    test_session.add(user)
+    test_session.commit()
+    test_session.refresh(user)
+    return user
