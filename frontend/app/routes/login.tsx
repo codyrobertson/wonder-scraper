@@ -168,7 +168,13 @@ function Login() {
             </div>
           </form>
 
-          <div className="mt-6 text-center text-sm">
+          <div className="mt-4 text-center">
+            <Link to={"/forgot-password" as any} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Forgot your password?
+            </Link>
+          </div>
+
+          <div className="mt-4 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
             <Link to={"/signup" as any} className="text-primary hover:underline font-bold">
               Sign Up

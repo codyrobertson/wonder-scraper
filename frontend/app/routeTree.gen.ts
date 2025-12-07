@@ -18,6 +18,8 @@ import { Route as PortfolioImport } from './routes/portfolio'
 import { Route as MarketImport } from './routes/market'
 import { Route as LoginImport } from './routes/login'
 import { Route as SignupImport } from './routes/signup'
+import { Route as ForgotPasswordImport } from './routes/forgot-password'
+import { Route as ResetPasswordImport } from './routes/reset-password'
 import { Route as IndexImport } from './routes/index'
 import { Route as AuthCallbackImport } from './routes/auth.callback'
 import { Route as CardsCardIdImport } from './routes/cards.$cardId'
@@ -50,6 +52,16 @@ const LoginRoute = LoginImport.update({
 
 const SignupRoute = SignupImport.update({
   path: '/signup',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ForgotPasswordRoute = ForgotPasswordImport.update({
+  path: '/forgot-password',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ResetPasswordRoute = ResetPasswordImport.update({
+  path: '/reset-password',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -121,6 +133,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupImport
       parentRoute: typeof rootRoute
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordImport
+      parentRoute: typeof rootRoute
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordImport
+      parentRoute: typeof rootRoute
+    }
     '/cards/$cardId': {
       id: '/cards/$cardId'
       path: '/cards/$cardId'
@@ -137,6 +163,8 @@ export const routeTree = rootRoute.addChildren({
   IndexRoute,
   LoginRoute,
   SignupRoute,
+  ForgotPasswordRoute,
+  ResetPasswordRoute,
   AuthCallbackRoute,
   MarketRoute,
   PortfolioRoute,

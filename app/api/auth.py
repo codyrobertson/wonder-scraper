@@ -1,9 +1,9 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Any
 import httpx
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
@@ -15,6 +15,7 @@ from app.core.jwt import create_access_token
 from app.core.rate_limit import rate_limiter, get_client_ip
 from app.db import get_session
 from app.models.user import User
+from app.services.email import send_welcome_email, send_password_reset_email
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -31,6 +32,16 @@ class UserResponse(BaseModel):
     id: int
     email: str
     is_active: bool
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+class MessageResponse(BaseModel):
+    message: str
 
 @router.post("/login", response_model=Token)
 def login_access_token(
@@ -82,6 +93,7 @@ def login_access_token(
 def register_user(
     request: Request,
     user_in: UserCreate,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session)
 ) -> Any:
     # Rate limiting: 3 registrations per hour per IP
@@ -120,6 +132,10 @@ def register_user(
     session.add(new_user)
     session.commit()
     session.refresh(new_user)
+
+    # Send welcome email in background
+    background_tasks.add_task(send_welcome_email, new_user.email)
+
     return new_user
 
 @router.get("/discord/login")
@@ -203,8 +219,109 @@ async def callback_discord(code: str, session: Session = Depends(get_session)):
         # Create JWT
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         token = create_access_token(user.email, expires_delta=access_token_expires)
-        
+
         # Redirect to Frontend
         # Using configured frontend URL
         frontend_url = f"{settings.FRONTEND_URL}/auth/callback"
         return RedirectResponse(f"{frontend_url}?token={token}")
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session)
+) -> Any:
+    """
+    Send password reset email.
+    Always returns success to prevent email enumeration.
+    """
+    # Rate limiting: 5 requests per hour per IP
+    ip = get_client_ip(request)
+    is_limited, retry_after = rate_limiter.is_rate_limited(ip, max_requests=5, window_seconds=3600)
+
+    if is_limited:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password reset attempts. Please try again later.",
+            headers={"Retry-After": str(retry_after)}
+        )
+
+    rate_limiter.record_request(ip)
+
+    user = session.query(User).filter(User.email == body.email).first()
+
+    if user:
+        # Generate secure token
+        reset_token = secrets.token_urlsafe(32)
+        user.password_reset_token = reset_token
+        user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+        session.add(user)
+        session.commit()
+
+        # Send email in background
+        background_tasks.add_task(send_password_reset_email, user.email, reset_token)
+
+    # Always return success to prevent email enumeration
+    return {"message": "If an account exists with this email, you will receive a password reset link."}
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+def reset_password(
+    request: Request,
+    body: ResetPasswordRequest,
+    session: Session = Depends(get_session)
+) -> Any:
+    """
+    Reset password using token from email.
+    """
+    # Rate limiting: 10 attempts per hour per IP
+    ip = get_client_ip(request)
+    is_limited, retry_after = rate_limiter.is_rate_limited(ip, max_requests=10, window_seconds=3600)
+
+    if is_limited:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many reset attempts. Please try again later.",
+            headers={"Retry-After": str(retry_after)}
+        )
+
+    rate_limiter.record_request(ip)
+
+    # Validate password
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long.",
+        )
+
+    # Find user by reset token
+    user = session.query(User).filter(User.password_reset_token == body.token).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired reset token.",
+        )
+
+    # Check if token is expired
+    if user.password_reset_expires and user.password_reset_expires < datetime.utcnow():
+        # Clear expired token
+        user.password_reset_token = None
+        user.password_reset_expires = None
+        session.add(user)
+        session.commit()
+        raise HTTPException(
+            status_code=400,
+            detail="Reset token has expired. Please request a new one.",
+        )
+
+    # Update password
+    user.hashed_password = security.get_password_hash(body.new_password)
+    user.password_reset_token = None
+    user.password_reset_expires = None
+    session.add(user)
+    session.commit()
+
+    return {"message": "Password has been reset successfully. You can now log in."}
