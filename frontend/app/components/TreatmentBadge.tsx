@@ -16,6 +16,11 @@ export type Treatment =
   | 'Full Art'
   | 'Full Art Foil'
   | 'Serialized'
+  // Graded/Preslab treatments (Blokpax TAG graded)
+  | 'Preslab TAG'
+  | 'Preslab TAG 8'
+  | 'Preslab TAG 9'
+  | 'Preslab TAG 10'
   // Sealed product treatments
   | 'Factory Sealed'
   | 'Sealed'
@@ -43,7 +48,7 @@ interface TreatmentBadgeProps {
 
 // Treatment tiers for rarity (affects animation)
 const ULTRA_RARE_TREATMENTS = ['Formless Foil', 'OCM Serialized', 'Serialized', '1/1', 'Legendary']
-const RARE_TREATMENTS = ['Stonefoil', 'Starfoil', 'Full Art Foil', 'Animated']
+const RARE_TREATMENTS = ['Stonefoil', 'Starfoil', 'Full Art Foil', 'Animated', 'Preslab TAG 10']
 const UNCOMMON_TREATMENTS = ['Classic Foil', 'Full Art', 'Prerelease', 'Promo', 'Proof/Sample', 'Error/Errata']
 
 // Color schemes for each treatment
@@ -104,6 +109,29 @@ const TREATMENT_STYLES: Record<string, { bg: string; border: string; text: strin
     border: 'border-cyan-400/40',
     text: 'text-cyan-300',
     gradient: 'linear-gradient(90deg, rgba(8,51,68,0.15) 0%, rgba(6,182,212,0.25) 25%, rgba(103,232,249,0.3) 50%, rgba(6,182,212,0.25) 75%, rgba(8,51,68,0.15) 100%)',
+  },
+
+  // === GRADED / PRESLAB (TAG graded singles from Blokpax) ===
+  'Preslab TAG 10': {
+    bg: 'bg-gradient-to-r from-amber-900 via-yellow-700 to-amber-900',
+    border: 'border-amber-400/50',
+    text: 'text-amber-200',
+    gradient: 'linear-gradient(90deg, rgba(180,83,9,0.15) 0%, rgba(253,224,71,0.3) 25%, rgba(254,240,138,0.35) 50%, rgba(253,224,71,0.3) 75%, rgba(180,83,9,0.15) 100%)',
+  },
+  'Preslab TAG 9': {
+    bg: 'bg-green-950/80',
+    border: 'border-green-500/50',
+    text: 'text-green-300',
+  },
+  'Preslab TAG 8': {
+    bg: 'bg-sky-950/80',
+    border: 'border-sky-500/50',
+    text: 'text-sky-300',
+  },
+  'Preslab TAG': {
+    bg: 'bg-teal-950/80',
+    border: 'border-teal-500/50',
+    text: 'text-teal-300',
   },
 
   // === UNCOMMON (no animation) ===

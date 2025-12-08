@@ -61,7 +61,8 @@ const TREATMENTS = [
   'Formless', 'Formless Foil',
   'Serialized',
   '1st Edition', '1st Edition Foil',
-  'Promo', 'Prerelease'
+  'Promo', 'Prerelease',
+  'Preslab TAG', 'Preslab TAG 8', 'Preslab TAG 9', 'Preslab TAG 10'
 ]
 const SOURCES = ['eBay', 'Blokpax', 'TCGPlayer', 'LGS', 'Trade', 'Pack Pull', 'Other']
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
@@ -79,6 +80,10 @@ const TREATMENT_COLORS: Record<string, string> = {
   '1st Edition Foil': '#ea580c',  // orange-600
   'Promo': '#f43f5e',             // rose-500
   'Prerelease': '#ec4899',        // pink-500
+  'Preslab TAG': '#2dd4bf',       // teal-400
+  'Preslab TAG 8': '#38bdf8',     // sky-400
+  'Preslab TAG 9': '#4ade80',     // green-400
+  'Preslab TAG 10': '#fcd34d',    // amber-300
 }
 
 const getTreatmentColor = (treatment: string): string => {
