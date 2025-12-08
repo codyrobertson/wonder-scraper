@@ -149,8 +149,8 @@ async def scrape_active_data(card_name: str, card_id: int, search_term: Optional
                                         is_auction=is_auction,
                                         floor_price=lowest_ask if lowest_ask > 0 else None
                                     )
-                                except Exception:
-                                    pass
+                                except Exception as webhook_err:
+                                    print(f"Discord webhook failed for {card_name}: {webhook_err}")
                             except Exception as insert_err:
                                 session.rollback()
                                 if "unique" in str(insert_err).lower() or "duplicate" in str(insert_err).lower():

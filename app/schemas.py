@@ -79,6 +79,27 @@ class CardOut(CardBase):
     last_sale_diff: Optional[float] = None    # @deprecated: use 'floor_delta'
     last_sale_treatment: Optional[str] = None # @deprecated: use 'last_treatment'
 
+
+class CardListItem(BaseModel):
+    """Lightweight card for list views - ~50% smaller payload than CardOut"""
+    id: int
+    name: str
+    slug: Optional[str] = None
+    set_name: Optional[str] = None
+    rarity_name: Optional[str] = None
+    product_type: Optional[str] = None
+    # Core prices
+    floor_price: Optional[float] = None
+    latest_price: Optional[float] = None
+    lowest_ask: Optional[float] = None
+    max_price: Optional[float] = None  # Highest sale (HIGH column)
+    # Volume & delta
+    volume: Optional[int] = None
+    inventory: Optional[int] = None
+    price_delta: Optional[float] = None
+    # Treatment for display
+    last_treatment: Optional[str] = None
+
 class CardWithMarket(CardOut):
     market_snapshot: Optional[MarketSnapshotOut] = None
 

@@ -210,6 +210,9 @@ export const Route = createRoute({
   },
 })
 
+// Re-export component for potential lazy loading
+export { CardDetail }
+
 type TimeRange = '7d' | '30d' | '90d' | 'all'
 type ChartType = 'line' | 'scatter'
 
@@ -261,24 +264,35 @@ function CardDetail() {
           // If market data fails (404 or 401), return basic info
           return basic
       }
-    }
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes - card data updates infrequently
   })
 
-  // Fetch Sales History (sold + active listings) - fetch ALL for complete timeline
-  const { data: history, isLoading: isLoadingHistory } = useQuery({
+  // Fetch Sales History (sold + active listings) - paginated for performance
+  // Initial load: 100 recent sales (enough for chart), load more on demand
+  const { data: historyData, isLoading: isLoadingHistory } = useQuery({
       queryKey: ['card-history', cardId],
       queryFn: async () => {
           try {
-            // Fetch ALL sold listings for complete price history chart
-            const soldData = await api.get(`cards/${cardId}/history?limit=1000`).json<MarketPrice[]>()
+            // Fetch recent sold listings (paginated=true returns {items, total, hasMore})
+            const soldResponse = await api.get(`cards/${cardId}/history?limit=100&paginated=true`).json<{items: MarketPrice[], total: number, hasMore: boolean}>()
             const activeData = await api.get(`cards/${cardId}/active?limit=100`).json<MarketPrice[]>().catch(() => [])
-            // Combine and sort by date (active listings first, then sold by date)
-            return [...activeData, ...soldData]
+            // Combine: active listings first, then sold by date
+            return {
+              items: [...activeData, ...soldResponse.items],
+              total: soldResponse.total,
+              hasMore: soldResponse.hasMore,
+              activeCount: activeData.length
+            }
           } catch (e) {
-              return []
+              return { items: [], total: 0, hasMore: false, activeCount: 0 }
           }
-      }
+      },
+      staleTime: 2 * 60 * 1000, // 2 minutes
   })
+
+  // Backwards compat: extract items array for existing code
+  const history = historyData?.items ?? []
 
   // Fetch Snapshot History (for OpenSea/NFT items that don't have individual sales)
   const { data: snapshots } = useQuery({
@@ -291,7 +305,8 @@ function CardDetail() {
           }
       },
       // Only fetch if we have no sales history (OpenSea items)
-      enabled: !isLoadingHistory
+      enabled: !isLoadingHistory,
+      staleTime: 5 * 60 * 1000, // 5 minutes - snapshots change slowly
   })
 
   // Fetch FMP by Treatment data
@@ -330,7 +345,8 @@ function CardDetail() {
           } catch (e) {
               return null
           }
-      }
+      },
+      staleTime: 5 * 60 * 1000, // 5 minutes - pricing is computed, changes slowly
   })
 
   // Determine if this is an OpenSea/NFT item (no individual sales, only snapshots)

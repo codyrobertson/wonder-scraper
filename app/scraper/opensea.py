@@ -396,7 +396,7 @@ async def _scrape_opensea_sales_web(
                                 event_time = item.get('eventTime', '')
                                 try:
                                     sold_at = datetime.fromisoformat(event_time.replace('Z', '+00:00'))
-                                except:
+                                except (ValueError, TypeError, AttributeError):
                                     sold_at = datetime.utcnow()
 
                                 # Extract transaction hash
@@ -408,11 +408,11 @@ async def _scrape_opensea_sales_web(
                                 token_name = nft.get('name', f'#{token_id}')
                                 image_url = nft.get('imageUrl', '')
 
-                                # Extract price
-                                price_data = item.get('price', {})
-                                token_price = price_data.get('token', {})
-                                price_eth = float(token_price.get('unit', 0))
-                                price_usd = float(price_data.get('usd', price_eth * eth_price_usd))
+                                # Extract price (safely handle None/missing data)
+                                price_data = item.get('price') or {}
+                                token_price = price_data.get('token') or {}
+                                price_eth = float(token_price.get('unit', 0) or 0)
+                                price_usd = float(price_data.get('usd') or (price_eth * eth_price_usd))
 
                                 # Extract seller/buyer if available
                                 seller = item.get('seller', {})

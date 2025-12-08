@@ -1,31 +1,24 @@
 """
 Admin API endpoints for triggering maintenance tasks like backfill.
-Protected by API key authentication.
+Protected by superuser authentication.
 """
-import os
 import asyncio
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Header, BackgroundTasks, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
 from pydantic import BaseModel
 from datetime import datetime
 
+from app.api import deps
+from app.models.user import User
+
 router = APIRouter()
 
-# Simple API key auth for admin endpoints
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
-
-def verify_admin_key(x_admin_key: str = Header(..., alias="X-Admin-Key")):
-    """Verify the admin API key."""
-    if not ADMIN_API_KEY:
-        raise HTTPException(status_code=500, detail="Admin API key not configured")
-    if x_admin_key != ADMIN_API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid admin key")
-    return True
 
 class BackfillRequest(BaseModel):
     limit: int = 100
     force_all: bool = False
     is_backfill: bool = True
+
 
 class BackfillResponse(BaseModel):
     status: str
@@ -33,8 +26,10 @@ class BackfillResponse(BaseModel):
     job_id: str
     started_at: str
 
+
 # Track running jobs
 _running_jobs = {}
+
 
 async def run_backfill_job(job_id: str, limit: int, force_all: bool, is_backfill: bool):
     """Background task to run the backfill."""
@@ -128,11 +123,12 @@ async def run_backfill_job(job_id: str, limit: int, force_all: bool, is_backfill
         # Log error to Discord
         log_scrape_error("Backfill Job", str(e)[:500])
 
+
 @router.post("/backfill", response_model=BackfillResponse)
 async def trigger_backfill(
     request: BackfillRequest,
     background_tasks: BackgroundTasks,
-    x_admin_key: str = Header(..., alias="X-Admin-Key")
+    current_user: User = Depends(deps.get_current_superuser),
 ):
     """
     Trigger a backfill job to scrape historical data.
@@ -141,8 +137,6 @@ async def trigger_backfill(
     - **force_all**: If true, scrape all cards regardless of last update time
     - **is_backfill**: If true, use higher page limits for more historical data
     """
-    verify_admin_key(x_admin_key)
-
     # Check if a job is already running
     for job_id, job in _running_jobs.items():
         if job.get("status") == "running":
@@ -170,14 +164,13 @@ async def trigger_backfill(
         started_at=datetime.utcnow().isoformat()
     )
 
+
 @router.get("/backfill/status")
 async def get_backfill_status(
-    x_admin_key: str = Header(..., alias="X-Admin-Key"),
-    job_id: Optional[str] = Query(None)
+    current_user: User = Depends(deps.get_current_superuser),
+    job_id: Optional[str] = Query(None),
 ):
     """Get status of backfill jobs."""
-    verify_admin_key(x_admin_key)
-
     if job_id:
         if job_id not in _running_jobs:
             raise HTTPException(status_code=404, detail="Job not found")
@@ -185,16 +178,271 @@ async def get_backfill_status(
 
     return _running_jobs
 
+
 @router.post("/scrape/trigger")
 async def trigger_scheduled_scrape(
     background_tasks: BackgroundTasks,
-    x_admin_key: str = Header(..., alias="X-Admin-Key"),
+    current_user: User = Depends(deps.get_current_superuser),
 ):
     """Manually trigger the scheduled scrape job."""
-    verify_admin_key(x_admin_key)
-
     from app.core.scheduler import job_update_market_data
 
     background_tasks.add_task(job_update_market_data)
 
     return {"status": "triggered", "message": "Scheduled scrape job triggered"}
+
+
+@router.get("/stats")
+async def get_admin_stats(
+    current_user: User = Depends(deps.get_current_superuser),
+):
+    """Get system statistics for admin dashboard."""
+    from sqlmodel import Session, select, func, text
+    from app.db import engine
+    from app.models.user import User as UserModel
+    from app.models.card import Card
+    from app.models.market import MarketPrice, MarketSnapshot
+    from app.models.portfolio import PortfolioCard
+    from app.models.analytics import PageView
+    from datetime import timedelta
+
+    with Session(engine) as session:
+        # User stats
+        total_users = session.exec(select(func.count(UserModel.id))).one()
+        active_users_24h = session.exec(
+            select(func.count(UserModel.id)).where(
+                UserModel.last_login >= datetime.utcnow() - timedelta(hours=24)
+            )
+        ).one() if hasattr(UserModel, 'last_login') else 0
+
+        # Get all users with details
+        all_users = session.exec(select(UserModel).order_by(UserModel.created_at.desc())).all()
+        users_list = []
+        for u in all_users:
+            users_list.append({
+                "id": u.id,
+                "email": u.email,
+                "username": getattr(u, 'username', None),
+                "discord_handle": getattr(u, 'discord_handle', None),
+                "is_superuser": u.is_superuser,
+                "is_active": u.is_active,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "last_login": u.last_login.isoformat() if hasattr(u, 'last_login') and u.last_login else None,
+            })
+
+        # Card stats
+        total_cards = session.exec(select(func.count(Card.id))).one()
+
+        # Market data stats
+        total_listings = session.exec(select(func.count(MarketPrice.id))).one()
+        sold_listings = session.exec(
+            select(func.count(MarketPrice.id)).where(MarketPrice.listing_type == "sold")
+        ).one()
+        active_listings = session.exec(
+            select(func.count(MarketPrice.id)).where(MarketPrice.listing_type == "active")
+        ).one()
+
+        # Listings in last 24h
+        listings_24h = session.exec(
+            select(func.count(MarketPrice.id)).where(
+                MarketPrice.scraped_at >= datetime.utcnow() - timedelta(hours=24)
+            )
+        ).one()
+
+        # Listings in last 7d
+        listings_7d = session.exec(
+            select(func.count(MarketPrice.id)).where(
+                MarketPrice.scraped_at >= datetime.utcnow() - timedelta(days=7)
+            )
+        ).one()
+
+        # Portfolio stats
+        total_portfolio_cards = session.exec(
+            select(func.count(PortfolioCard.id)).where(PortfolioCard.deleted_at.is_(None))
+        ).one()
+
+        # Snapshot stats
+        total_snapshots = session.exec(select(func.count(MarketSnapshot.id))).one()
+        latest_snapshot = session.exec(
+            select(MarketSnapshot).order_by(MarketSnapshot.timestamp.desc()).limit(1)
+        ).first()
+
+        # Database size (PostgreSQL)
+        try:
+            db_size_result = session.execute(text(
+                "SELECT pg_size_pretty(pg_database_size(current_database()))"
+            )).first()
+            db_size = db_size_result[0] if db_size_result else "Unknown"
+        except:
+            db_size = "Unknown"
+
+        # Top scraped cards (by listing count)
+        top_cards_result = session.execute(text("""
+            SELECT c.name, COUNT(mp.id) as listing_count
+            FROM card c
+            JOIN marketprice mp ON mp.card_id = c.id
+            GROUP BY c.id, c.name
+            ORDER BY listing_count DESC
+            LIMIT 10
+        """)).all()
+        top_cards = [{"name": row[0], "listings": row[1]} for row in top_cards_result]
+
+        # Daily scrape volume (last 7 days)
+        daily_volume_result = session.execute(text("""
+            SELECT DATE(scraped_at) as date, COUNT(*) as count
+            FROM marketprice
+            WHERE scraped_at >= NOW() - INTERVAL '7 days'
+            GROUP BY DATE(scraped_at)
+            ORDER BY date DESC
+        """)).all()
+        daily_volume = [{"date": str(row[0]), "count": row[1]} for row in daily_volume_result]
+
+        # Analytics - Page views
+        try:
+            total_pageviews = session.exec(select(func.count(PageView.id))).one()
+            pageviews_24h = session.exec(
+                select(func.count(PageView.id)).where(
+                    PageView.timestamp >= datetime.utcnow() - timedelta(hours=24)
+                )
+            ).one()
+            pageviews_7d = session.exec(
+                select(func.count(PageView.id)).where(
+                    PageView.timestamp >= datetime.utcnow() - timedelta(days=7)
+                )
+            ).one()
+
+            # Unique visitors (by ip_hash) in 24h
+            unique_visitors_24h = session.execute(text("""
+                SELECT COUNT(DISTINCT ip_hash) FROM pageview
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
+            """)).scalar() or 0
+
+            # Unique visitors in 7d
+            unique_visitors_7d = session.execute(text("""
+                SELECT COUNT(DISTINCT ip_hash) FROM pageview
+                WHERE timestamp >= NOW() - INTERVAL '7 days'
+            """)).scalar() or 0
+
+            # Top pages (last 7 days)
+            top_pages_result = session.execute(text("""
+                SELECT path, COUNT(*) as views
+                FROM pageview
+                WHERE timestamp >= NOW() - INTERVAL '7 days'
+                GROUP BY path
+                ORDER BY views DESC
+                LIMIT 10
+            """)).all()
+            top_pages = [{"path": row[0], "views": row[1]} for row in top_pages_result]
+
+            # Traffic by device type
+            device_breakdown_result = session.execute(text("""
+                SELECT device_type, COUNT(*) as count
+                FROM pageview
+                WHERE timestamp >= NOW() - INTERVAL '7 days'
+                GROUP BY device_type
+                ORDER BY count DESC
+            """)).all()
+            device_breakdown = [{"device": row[0] or "unknown", "count": row[1]} for row in device_breakdown_result]
+
+            # Daily pageviews (last 7 days)
+            daily_pageviews_result = session.execute(text("""
+                SELECT DATE(timestamp) as date, COUNT(*) as count
+                FROM pageview
+                WHERE timestamp >= NOW() - INTERVAL '7 days'
+                GROUP BY DATE(timestamp)
+                ORDER BY date DESC
+            """)).all()
+            daily_pageviews = [{"date": str(row[0]), "count": row[1]} for row in daily_pageviews_result]
+
+            # Top referrers
+            top_referrers_result = session.execute(text("""
+                SELECT referrer, COUNT(*) as count
+                FROM pageview
+                WHERE timestamp >= NOW() - INTERVAL '7 days'
+                  AND referrer IS NOT NULL
+                  AND referrer != ''
+                GROUP BY referrer
+                ORDER BY count DESC
+                LIMIT 10
+            """)).all()
+            top_referrers = [{"referrer": row[0], "count": row[1]} for row in top_referrers_result]
+
+            analytics_data = {
+                "total_pageviews": total_pageviews,
+                "pageviews_24h": pageviews_24h,
+                "pageviews_7d": pageviews_7d,
+                "unique_visitors_24h": unique_visitors_24h,
+                "unique_visitors_7d": unique_visitors_7d,
+                "top_pages": top_pages,
+                "device_breakdown": device_breakdown,
+                "daily_pageviews": daily_pageviews,
+                "top_referrers": top_referrers,
+            }
+        except Exception as e:
+            # Table might not exist yet
+            analytics_data = {
+                "total_pageviews": 0,
+                "pageviews_24h": 0,
+                "pageviews_7d": 0,
+                "unique_visitors_24h": 0,
+                "unique_visitors_7d": 0,
+                "top_pages": [],
+                "device_breakdown": [],
+                "daily_pageviews": [],
+                "top_referrers": [],
+                "error": str(e),
+            }
+
+        return {
+            "users": {
+                "total": total_users,
+                "active_24h": active_users_24h,
+                "list": users_list,
+            },
+            "cards": {
+                "total": total_cards,
+            },
+            "listings": {
+                "total": total_listings,
+                "sold": sold_listings,
+                "active": active_listings,
+                "last_24h": listings_24h,
+                "last_7d": listings_7d,
+            },
+            "portfolio": {
+                "total_cards": total_portfolio_cards,
+            },
+            "snapshots": {
+                "total": total_snapshots,
+                "latest": latest_snapshot.timestamp.isoformat() if latest_snapshot else None,
+            },
+            "database": {
+                "size": db_size,
+            },
+            "top_cards": top_cards,
+            "daily_volume": daily_volume,
+            "scraper_jobs": _running_jobs,
+            "analytics": analytics_data,
+        }
+
+
+@router.get("/scheduler/status")
+async def get_scheduler_status(
+    current_user: User = Depends(deps.get_current_superuser),
+):
+    """Get scheduler job status."""
+    from app.core.scheduler import scheduler
+
+    jobs = []
+    for job in scheduler.get_jobs():
+        jobs.append({
+            "id": job.id,
+            "name": job.name,
+            "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+            "trigger": str(job.trigger),
+        })
+
+    return {
+        "running": scheduler.running,
+        "jobs": jobs,
+    }

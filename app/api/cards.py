@@ -12,7 +12,7 @@ from app.api import deps
 from app.db import get_session
 from app.models.card import Card, Rarity
 from app.models.market import MarketSnapshot, MarketPrice
-from app.schemas import CardOut, MarketSnapshotOut, MarketPriceOut
+from app.schemas import CardOut, CardListItem, MarketSnapshotOut, MarketPriceOut
 from app.services.pricing import FairMarketPriceService
 
 router = APIRouter()
@@ -37,26 +37,32 @@ def set_cache(key: str, value: Any, ttl: int = 300):
     with _cache_lock:
         _cache[key] = value
 
-@router.get("/", response_model=List[CardOut])
+@router.get("/")
 def read_cards(
     session: Session = Depends(get_session),
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(default=0, ge=0, description="Offset for pagination"),
+    limit: int = Query(default=100, ge=1, le=500, description="Items per page (max 500)"),
     search: Optional[str] = None,
-    time_period: Optional[str] = Query(default="7d", pattern="^(7d|30d|90d|all)$"),
+    time_period: Optional[str] = Query(default="7d", pattern="^(24h|7d|30d|90d|all)$"),
     product_type: Optional[str] = Query(default=None, description="Filter by product type (e.g., Single, Box, Pack)"),
+    include_total: bool = Query(default=False, description="Include total count (slower)"),
+    slim: bool = Query(default=False, description="Return lightweight payload (~50% smaller)"),
 ) -> Any:
     """
     Retrieve cards with latest market data - OPTIMIZED with caching.
     Single batch query instead of N+1 + 5-minute cache.
+    Returns paginated response with {items, total?, hasMore} when include_total=true.
+    Use slim=true for ~50% smaller payload (recommended for list views).
     """
-    # Check cache first (v12 = floor price prefers base treatments, falls back to cheapest treatment)
-    cache_key = get_cache_key("cards_v12", skip=skip, limit=limit, search=search or "", time_period=time_period, product_type=product_type or "")
+    # Check cache first (v14 = slim mode support)
+    cache_key = get_cache_key("cards_v14", skip=skip, limit=limit, search=search or "", time_period=time_period, product_type=product_type or "", include_total=include_total, slim=slim)
     cached = get_cached(cache_key)
     if cached:
         return JSONResponse(content=cached, headers={"X-Cache": "HIT"})
+
     # Calculate time cutoff
     time_cutoffs = {
+        "24h": timedelta(days=1),
         "7d": timedelta(days=7),
         "30d": timedelta(days=30),
         "90d": timedelta(days=90),
@@ -64,16 +70,22 @@ def read_cards(
     }
     cutoff_delta = time_cutoffs.get(time_period)
     cutoff_time = datetime.utcnow() - cutoff_delta if cutoff_delta else None
-    
-    # Single query to get cards
-    card_query = select(Card)
+
+    # Build base query with filters
+    base_query = select(Card)
     if search:
-        card_query = card_query.where(Card.name.ilike(f"%{search}%"))
+        base_query = base_query.where(Card.name.ilike(f"%{search}%"))
     if product_type:
-        # Case-insensitive match for better UX
-        card_query = card_query.where(Card.product_type.ilike(product_type))
-        
-    card_query = card_query.offset(skip).limit(limit)
+        base_query = base_query.where(Card.product_type.ilike(product_type))
+
+    # Get total count if requested (adds ~10ms overhead)
+    total = None
+    if include_total:
+        count_query = select(func.count()).select_from(base_query.subquery())
+        total = session.exec(count_query).one()
+
+    # Fetch paginated cards
+    card_query = base_query.offset(skip).limit(limit)
     cards = session.exec(card_query).all()
     
     if not cards:
@@ -382,12 +394,44 @@ def read_cards(
             last_sale_treatment=last_treatment,
         )
         results.append(c_out)
-    
-    # Convert to dict for caching
-    results_dict = [r.model_dump(mode='json') for r in results]
-    set_cache(cache_key, results_dict, ttl=300)  # 5 minutes
-    
-    return JSONResponse(content=results_dict, headers={"X-Cache": "MISS"})
+
+    # Convert to dict for caching - use slim schema if requested
+    if slim:
+        results_dict = [CardListItem(
+            id=r.id,
+            name=r.name,
+            slug=r.slug,
+            set_name=r.set_name,
+            rarity_name=r.rarity_name,
+            product_type=r.product_type,
+            floor_price=r.floor_price,
+            latest_price=r.latest_price,
+            lowest_ask=r.lowest_ask,
+            max_price=r.max_price,
+            volume=r.volume,
+            inventory=r.inventory,
+            price_delta=r.price_delta,
+            last_treatment=r.last_treatment,
+        ).model_dump(mode='json') for r in results]
+    else:
+        results_dict = [r.model_dump(mode='json') for r in results]
+
+    # Build response with pagination metadata
+    if include_total:
+        response_data = {
+            "items": results_dict,
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+            "hasMore": skip + len(results_dict) < total if total else False
+        }
+    else:
+        # Backwards compatible: return array directly when no pagination requested
+        response_data = results_dict
+
+    set_cache(cache_key, response_data, ttl=300)  # 5 minutes
+
+    return JSONResponse(content=response_data, headers={"X-Cache": "MISS"})
 
 def get_card_by_id_or_slug(session: Session, card_identifier: str) -> Card:
     """Resolve card by ID (numeric) or slug (string)."""
@@ -611,24 +655,48 @@ def read_market_data(
 
     return snapshot
 
-@router.get("/{card_id}/history", response_model=List[MarketPriceOut])
+@router.get("/{card_id}/history")
 def read_sales_history(
     card_id: str,  # Accept string to support both ID and slug
     session: Session = Depends(get_session),
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200, description="Items per page"),
+    offset: int = Query(default=0, ge=0, description="Offset for pagination"),
+    paginated: bool = Query(default=False, description="Return paginated response with metadata"),
 ) -> Any:
     """
     Get sales history (individual sold listings).
     Uses COALESCE(sold_date, scraped_at) for proper date ordering.
+
+    By default returns array of items (backwards compatible).
+    Use paginated=true to get {items, total, hasMore} format.
     """
     card = get_card_by_id_or_slug(session, card_id)
-    # Use ORM with func.coalesce for proper date ordering with NULL sold_date
+
+    # Fetch results
     statement = select(MarketPrice).where(
         MarketPrice.card_id == card.id,
         MarketPrice.listing_type == "sold"
-    ).order_by(desc(func.coalesce(MarketPrice.sold_date, MarketPrice.scraped_at))).limit(limit)
+    ).order_by(desc(func.coalesce(MarketPrice.sold_date, MarketPrice.scraped_at))).offset(offset).limit(limit)
     prices = session.exec(statement).all()
-    return prices
+
+    # Return array by default (backwards compatible)
+    if not paginated:
+        return prices
+
+    # Get total count only when paginated (avoids extra query)
+    count_stmt = select(func.count(MarketPrice.id)).where(
+        MarketPrice.card_id == card.id,
+        MarketPrice.listing_type == "sold"
+    )
+    total = session.exec(count_stmt).one()
+
+    return {
+        "items": [MarketPriceOut.model_validate(p) for p in prices],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "hasMore": offset + len(prices) < total
+    }
 
 @router.get("/{card_id}/active", response_model=List[MarketPriceOut])
 def read_active_listings(

@@ -66,8 +66,8 @@ async def process_card_batch(cards_data: List[dict], is_backfill: bool = False):
                 # If error is severe (browser crash), try to restart for next card
                 try:
                     await BrowserManager.restart()
-                except:
-                    pass
+                except Exception as restart_err:
+                    print(f"[Worker {os.getpid()}] Browser restart failed: {restart_err}")
                     
     except Exception as e:
         print(f"[Worker {os.getpid()}] Batch failed: {e}")
