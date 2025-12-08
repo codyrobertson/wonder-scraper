@@ -5,6 +5,7 @@ import { api, auth } from '../utils/auth'
 import { useState, useMemo } from 'react'
 import { usePageTracking } from '../hooks/usePageTracking'
 import Marquee from '../components/ui/marquee'
+import { Tooltip } from '../components/ui/tooltip'
 import { Analytics } from '@vercel/analytics/react'
 import { TimePeriodProvider, useTimePeriod } from '../context/TimePeriodContext'
 
@@ -121,12 +122,12 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
                 <LineChart className="w-3.5 h-3.5" />
                 <span>Market</span>
               </Link>
+              <Link to="/portfolio" className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors text-xs font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5">
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Portfolio</span>
+              </Link>
               {user && (
                 <>
-                  <Link to="/portfolio" className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors text-xs font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5">
-                    <Wallet className="w-3.5 h-3.5" />
-                    <span>Portfolio</span>
-                  </Link>
                   <Link to="/profile" className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors text-xs font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5">
                     <User className="w-3.5 h-3.5" />
                     <span>Profile</span>
@@ -152,18 +153,22 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
             {/* Admin Quick Links */}
             {user?.is_superuser && (
               <div className="hidden md:flex items-center gap-2 border-r border-border pr-4 mr-2">
-                <Link to={"/admin" as any} className="text-muted-foreground hover:text-foreground transition-colors" title="Server Health">
-                  <Server className="w-3.5 h-3.5" />
-                </Link>
+                <Tooltip content="Server Health">
+                    <Link to={"/admin" as any} className="text-muted-foreground hover:text-foreground transition-colors">
+                      <Server className="w-3.5 h-3.5" />
+                    </Link>
+                </Tooltip>
               </div>
             )}
 
             {user ? (
               <div className="flex items-center gap-3">
                 <div className="text-xs font-bold uppercase truncate max-w-[120px] hidden sm:block">{user.email}</div>
-                <button onClick={() => auth.logout()} className="text-muted-foreground hover:text-red-500 transition-colors p-1" title="Logout">
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
+                <Tooltip content="Logout">
+                    <button onClick={() => auth.logout()} className="text-muted-foreground hover:text-red-500 transition-colors p-1">
+                      <LogOut className="w-3.5 h-3.5" />
+                    </button>
+                </Tooltip>
               </div>
             ) : (
               <Link to="/login" className="text-xs font-bold uppercase px-3 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors relative z-50">
@@ -193,16 +198,16 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
                 <LineChart className="w-4 h-4" />
                 <span>Market</span>
               </Link>
+              <Link
+                to="/portfolio"
+                className="flex items-center gap-3 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors text-sm font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Wallet className="w-4 h-4" />
+                <span>Portfolio</span>
+              </Link>
               {user && (
                 <>
-                  <Link
-                    to="/portfolio"
-                    className="flex items-center gap-3 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors text-sm font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <Wallet className="w-4 h-4" />
-                    <span>Portfolio</span>
-                  </Link>
                   <Link
                     to="/profile"
                     className="flex items-center gap-3 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors text-sm font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5"
