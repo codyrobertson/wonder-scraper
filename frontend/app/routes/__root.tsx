@@ -1,8 +1,9 @@
 import { Outlet, createRootRoute, Link, useNavigate } from '@tanstack/react-router'
-import { LayoutDashboard, LineChart, Wallet, Settings, User, Server, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, LineChart, Wallet, User, Server, LogOut, Menu, X, Shield } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api, auth } from '../utils/auth'
 import { useState, useMemo } from 'react'
+import { usePageTracking } from '../hooks/usePageTracking'
 import Marquee from '../components/ui/marquee'
 import { Analytics } from '@vercel/analytics/react'
 import { TimePeriodProvider, useTimePeriod } from '../context/TimePeriodContext'
@@ -44,6 +45,9 @@ function RootComponent() {
 function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate: any, mobileMenuOpen: boolean, setMobileMenuOpen: (v: boolean) => void }) {
   const { timePeriod } = useTimePeriod()
 
+  // Track page views for internal analytics
+  usePageTracking()
+
   const { data: user } = useQuery({
       queryKey: ['me'],
       queryFn: async () => {
@@ -56,16 +60,20 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
               return null
           }
       },
-      retry: false
+      retry: false,
+      staleTime: 30 * 60 * 1000, // 30 minutes - user profile rarely changes
   })
 
   // Fetch cards for marquee ticker - uses shared time period
+  // Uses same query key as dashboard so data is shared/cached
+  // slim=true reduces payload by ~50% for faster loading
   const { data: cards = [] } = useQuery({
-      queryKey: ['cards-marquee', timePeriod],
+      queryKey: ['cards', timePeriod, 'all'], // Same key as dashboard with productType='all'
       queryFn: async () => {
-          return await api.get(`cards/?limit=500&time_period=${timePeriod}`).json<Card[]>()
+          return await api.get(`cards/?limit=500&time_period=${timePeriod}&slim=true`).json<Card[]>()
       },
       staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 30 * 60 * 1000, // 30 minutes cache
   })
 
   // Helper to get delta with fallback
@@ -123,6 +131,12 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
                     <User className="w-3.5 h-3.5" />
                     <span>Profile</span>
                   </Link>
+                  {user.is_superuser && (
+                    <Link to={"/admin" as any} className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors text-xs font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5">
+                      <Shield className="w-3.5 h-3.5" />
+                      <span>Admin</span>
+                    </Link>
+                  )}
                 </>
               )}
             </nav>
@@ -138,12 +152,9 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
             {/* Admin Quick Links */}
             {user?.is_superuser && (
               <div className="hidden md:flex items-center gap-2 border-r border-border pr-4 mr-2">
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors" title="Scraper Status">
+                <Link to={"/admin" as any} className="text-muted-foreground hover:text-foreground transition-colors" title="Server Health">
                   <Server className="w-3.5 h-3.5" />
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors" title="Settings">
-                  <Settings className="w-3.5 h-3.5" />
-                </a>
+                </Link>
               </div>
             )}
 
@@ -213,16 +224,28 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
                 </Link>
               )}
               {user && (
-                <button
-                  onClick={() => {
-                    auth.logout()
-                    setMobileMenuOpen(false)
-                  }}
-                  className="flex items-center gap-3 px-3 py-2.5 text-red-500 hover:bg-red-500/10 rounded-md transition-colors text-sm font-bold uppercase w-full text-left"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Logout</span>
-                </button>
+                <>
+                  {user.is_superuser && (
+                    <Link
+                      to={"/admin" as any}
+                      className="flex items-center gap-3 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors text-sm font-bold uppercase [&.active]:text-primary [&.active]:bg-primary/5"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Shield className="w-4 h-4" />
+                      <span>Admin</span>
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => {
+                      auth.logout()
+                      setMobileMenuOpen(false)
+                    }}
+                    className="flex items-center gap-3 px-3 py-2.5 text-red-500 hover:bg-red-500/10 rounded-md transition-colors text-sm font-bold uppercase w-full text-left"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </button>
+                </>
               )}
             </nav>
           </div>

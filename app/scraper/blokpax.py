@@ -47,6 +47,7 @@ _bpx_price_cache: Dict[str, Any] = {
     "timestamp": None,
     "ttl_seconds": 300  # 5 min cache
 }
+_bpx_cache_lock = asyncio.Lock()
 
 
 @dataclass
@@ -111,38 +112,46 @@ class BlokpaxAsset:
 async def get_bpx_price() -> float:
     """
     Fetches current BPX price in USD from GeckoTerminal.
-    Uses cached value if available and fresh.
+    Uses cached value if available and fresh. Thread-safe via asyncio lock.
     """
     global _bpx_price_cache
 
-    # Check cache
+    # Quick check without lock (read is safe)
     if _bpx_price_cache["price"] and _bpx_price_cache["timestamp"]:
         age = datetime.now() - _bpx_price_cache["timestamp"]
         if age.total_seconds() < _bpx_price_cache["ttl_seconds"]:
             return _bpx_price_cache["price"]
 
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(GECKO_POOL_URL, timeout=10.0)
-            data = response.json()
+    # Acquire lock for cache update
+    async with _bpx_cache_lock:
+        # Double-check after acquiring lock (another task may have updated)
+        if _bpx_price_cache["price"] and _bpx_price_cache["timestamp"]:
+            age = datetime.now() - _bpx_price_cache["timestamp"]
+            if age.total_seconds() < _bpx_price_cache["ttl_seconds"]:
+                return _bpx_price_cache["price"]
 
-            # Extract base_token_price_usd (BPX is base token)
-            price_str = data["data"]["attributes"]["base_token_price_usd"]
-            price = float(price_str)
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(GECKO_POOL_URL, timeout=10.0)
+                data = response.json()
 
-            # Update cache
-            _bpx_price_cache["price"] = price
-            _bpx_price_cache["timestamp"] = datetime.now()
+                # Extract base_token_price_usd (BPX is base token)
+                price_str = data["data"]["attributes"]["base_token_price_usd"]
+                price = float(price_str)
 
-            print(f"BPX Price: ${price:.6f} USD")
-            return price
+                # Update cache
+                _bpx_price_cache["price"] = price
+                _bpx_price_cache["timestamp"] = datetime.now()
 
-    except Exception as e:
-        print(f"Failed to fetch BPX price: {e}")
-        # Fallback to cached or approximate value
-        if _bpx_price_cache["price"]:
-            return _bpx_price_cache["price"]
-        return 0.002  # Approximate fallback
+                print(f"BPX Price: ${price:.6f} USD")
+                return price
+
+        except Exception as e:
+            print(f"Failed to fetch BPX price: {e}")
+            # Fallback to cached or approximate value
+            if _bpx_price_cache["price"]:
+                return _bpx_price_cache["price"]
+            return 0.002  # Approximate fallback
 
 
 def bpx_to_float(raw_price: int) -> float:
@@ -378,6 +387,11 @@ async def scrape_all_listings(slug: str, max_pages: int = 200, concurrency: int 
     import aiohttp
 
     bpx_price = await get_bpx_price()
+    # Ensure valid BPX price for USD calculations
+    if not bpx_price or bpx_price <= 0:
+        print(f"[Blokpax] Warning: Invalid BPX price ({bpx_price}), using fallback")
+        bpx_price = 0.002
+
     all_listings: List[BlokpaxListing] = []
     seen_listing_ids = set()
 
@@ -619,6 +633,10 @@ async def scrape_storefront_floor(slug: str, deep_scan: bool = True) -> Dict[str
                    If False, only gets metadata without listings.
     """
     bpx_price = await get_bpx_price()
+    # Ensure valid BPX price for USD calculations
+    if not bpx_price or bpx_price <= 0:
+        print(f"[Blokpax] Warning: Invalid BPX price ({bpx_price}), using fallback")
+        bpx_price = 0.002
 
     # Get first page for metadata
     assets_response = await fetch_storefront_assets(slug, page=1, per_page=24, sort_by="price_asc")
@@ -665,6 +683,11 @@ async def scrape_recent_sales(slug: str, max_pages: int = 3) -> List[BlokpaxSale
     Scrapes recent sales (filled listings) from a storefront.
     """
     bpx_price = await get_bpx_price()
+    # Ensure valid BPX price for USD calculations
+    if not bpx_price or bpx_price <= 0:
+        print(f"[Blokpax] Warning: Invalid BPX price ({bpx_price}), using fallback")
+        bpx_price = 0.002
+
     all_sales = []
 
     for page in range(1, max_pages + 1):
@@ -723,6 +746,11 @@ async def scrape_all_offers(slug: str, max_pages: int = 200, concurrency: int = 
     import aiohttp
 
     bpx_price = await get_bpx_price()
+    # Ensure valid BPX price for USD calculations
+    if not bpx_price or bpx_price <= 0:
+        print(f"[Blokpax] Warning: Invalid BPX price ({bpx_price}), using fallback")
+        bpx_price = 0.002
+
     all_offers: List[BlokpaxOffer] = []
     seen_offer_ids = set()
 

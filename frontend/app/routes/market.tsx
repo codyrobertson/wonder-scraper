@@ -57,7 +57,8 @@ function MarketAnalysis() {
     queryKey: ['treatments'],
     queryFn: async () => {
         return await api.get('market/treatments').json<{ name: string; min_price: number; count: number }[]>()
-    }
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes - treatment floors change slowly
   })
 
   // Fetch optimized overview data from new endpoint
@@ -87,7 +88,9 @@ function MarketAnalysis() {
                 market_cap: (c.floor_price ?? c.latest_price ?? 0) * volumePeriod
             }
         }) as MarketCard[]
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes cache
   })
 
   // Reset sorting to volume descending when timeframe changes

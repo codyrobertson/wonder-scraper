@@ -256,4 +256,7 @@ async def get_page_content(url: str, retries: int = 3) -> str:
                     except Exception:
                         pass
 
-    raise last_error
+    # Should never reach here (loop raises on final attempt), but handle edge case
+    if last_error:
+        raise last_error
+    raise Exception(f"Failed to get page content for {url} after {retries + 1} attempts")

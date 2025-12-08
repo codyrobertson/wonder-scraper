@@ -1,7 +1,12 @@
 from typing import Any, List, Optional
+import json
+import hashlib
+import threading
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlmodel import Session, select, func, desc
 from datetime import datetime, timedelta
+from cachetools import TTLCache
 
 from app.api import deps
 from app.db import get_session
@@ -10,13 +15,32 @@ from app.models.market import MarketSnapshot, MarketPrice
 
 router = APIRouter()
 
+# Thread-safe cache with TTL (2 min for market data - it changes frequently)
+_market_cache = TTLCache(maxsize=50, ttl=120)
+_market_cache_lock = threading.Lock()
+
+def get_market_cache(key: str) -> Optional[Any]:
+    with _market_cache_lock:
+        return _market_cache.get(key)
+
+def set_market_cache(key: str, value: Any):
+    with _market_cache_lock:
+        _market_cache[key] = value
+
 @router.get("/treatments")
 def read_treatments(
     session: Session = Depends(get_session),
 ) -> Any:
     """
     Get price floors by treatment.
+    Cached for 2 minutes.
     """
+    # Check cache
+    cache_key = "market_treatments"
+    cached = get_market_cache(cache_key)
+    if cached:
+        return JSONResponse(content=cached, headers={"X-Cache": "HIT"})
+
     from sqlalchemy import text
     query = text("""
         SELECT
@@ -29,18 +53,32 @@ def read_treatments(
         ORDER BY treatment
     """)
     results = session.exec(query).all()
-    return [{"name": row[0], "min_price": float(row[1]), "count": int(row[2])} for row in results]
+    data = [{"name": row[0], "min_price": float(row[1]), "count": int(row[2])} for row in results]
+
+    # Cache result
+    set_market_cache(cache_key, data)
+
+    return JSONResponse(content=data, headers={"X-Cache": "MISS"})
 
 @router.get("/overview")
 def read_market_overview(
     session: Session = Depends(get_session),
-    time_period: Optional[str] = Query(default="30d", pattern="^(7d|30d|90d|all)$"),
+    time_period: Optional[str] = Query(default="30d", pattern="^(1h|24h|7d|30d|90d|all)$"),
 ) -> Any:
     """
     Get robust market overview statistics with temporal data.
+    Cached for 2 minutes to improve performance.
     """
+    # Check cache first
+    cache_key = f"market_overview_{time_period}"
+    cached = get_market_cache(cache_key)
+    if cached:
+        return JSONResponse(content=cached, headers={"X-Cache": "HIT"})
+
     # Calculate time cutoff
     time_cutoffs = {
+        "1h": timedelta(hours=1),
+        "24h": timedelta(days=1),
         "7d": timedelta(days=7),
         "30d": timedelta(days=30),
         "90d": timedelta(days=90),
@@ -203,6 +241,7 @@ def read_market_overview(
 
         overview_data.append({
             "id": card.id,
+            "slug": card.slug if hasattr(card, 'slug') else None,
             "name": card.name,
             "set_name": card.set_name,
             "rarity_id": card.rarity_id,
@@ -216,8 +255,11 @@ def read_market_overview(
             "deal_rating": deal_delta,
             "market_cap": (last_price or 0) * period_volume
         })
-        
-    return overview_data
+
+    # Cache the result
+    set_market_cache(cache_key, overview_data)
+
+    return JSONResponse(content=overview_data, headers={"X-Cache": "MISS"})
 
 @router.get("/activity")
 def read_market_activity(

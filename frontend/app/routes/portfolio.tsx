@@ -120,7 +120,8 @@ function Portfolio() {
       if (filterGraded === 'raw') params.set('graded', 'false')
       const queryString = params.toString()
       return await api.get(`portfolio/cards${queryString ? '?' + queryString : ''}`).json<PortfolioCard[]>()
-    }
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes - portfolio data is user-specific
   })
 
   // Fetch Portfolio Summary
@@ -128,7 +129,8 @@ function Portfolio() {
     queryKey: ['portfolio-summary'],
     queryFn: async () => {
       return await api.get('portfolio/cards/summary').json<PortfolioSummary>()
-    }
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes
   })
 
   // Fetch Portfolio Value History
@@ -139,7 +141,8 @@ function Portfolio() {
         history: { date: string; value: number }[]
         cost_basis_history: { date: string; value: number }[]
       }>()
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes - history changes slowly
   })
 
   // Update Mutation (PATCH for individual cards)

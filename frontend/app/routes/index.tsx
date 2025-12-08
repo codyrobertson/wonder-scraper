@@ -4,7 +4,7 @@ import { analytics } from '~/services/analytics'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getSortedRowModel, SortingState, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { ArrowUpDown, Search, ArrowUp, ArrowDown, Calendar, TrendingUp, DollarSign, BarChart3, LayoutDashboard, ChevronLeft, ChevronRight, Plus, Package, Layers, Gem, Archive, Info } from 'lucide-react'
+import { ArrowUpDown, Search, ArrowUp, ArrowDown, Calendar, TrendingUp, DollarSign, BarChart3, LayoutDashboard, ChevronLeft, ChevronRight, Plus, Package, Layers, Gem, Archive } from 'lucide-react'
 import clsx from 'clsx'
 import { Route as rootRoute } from './__root'
 import { useTimePeriod } from '../context/TimePeriodContext'
@@ -87,7 +87,8 @@ function Home() {
     return () => clearTimeout(timer)
   }, [globalFilter])
 
-  // Fetch User Profile for Permissions
+  // User profile is fetched in root layout and cached
+  // We just read from cache here (staleTime in root ensures it's fresh)
   const { data: user } = useQuery({
       queryKey: ['me'],
       queryFn: async () => {
@@ -97,7 +98,8 @@ function Home() {
               return null
           }
       },
-      retry: false
+      retry: false,
+      staleTime: 30 * 60 * 1000, // 30 minutes - user data rarely changes
   })
 
 
@@ -105,8 +107,9 @@ function Home() {
     queryKey: ['cards', timePeriod, productType],
     queryFn: async () => {
       const typeParam = productType !== 'all' ? `&product_type=${productType}` : ''
-      // Limit increased to 500 to show more assets
-      const data = await api.get(`cards/?limit=500&time_period=${timePeriod}${typeParam}`).json<Card[]>()
+      // Load all cards - important ones can be deep in the list
+      // slim=true reduces payload by ~50% for faster loading
+      const data = await api.get(`cards/?limit=500&time_period=${timePeriod}${typeParam}&slim=true`).json<Card[]>()
       return data.map(c => ({
           ...c,
           // Use new field names with fallback to deprecated for backwards compat
@@ -212,35 +215,6 @@ function Home() {
                         {delta > 0 ? '↑' : '↓'}{Math.abs(delta).toFixed(1)}%
                     </span>
                 )}
-            </div>
-          )
-      }
-    },
-    {
-      accessorKey: 'vwap', // Volume Weighted Average Price
-      sortingFn: (a, b) => ((a.original.vwap ?? 0) - (b.original.vwap ?? 0)),
-      header: ({ column }) => (
-        <div className="relative group flex items-center justify-center gap-1">
-          <button
-            className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            VWAP
-            <ArrowUpDown className="h-3 w-3" />
-          </button>
-          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[100]">
-            Volume Weighted Average Price
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-zinc-900"></div>
-          </div>
-        </div>
-      ),
-      cell: ({ row }) => {
-          const vwap = row.original.vwap
-          const hasVwap = !!vwap && vwap > 0
-          return (
-            <div className="text-center font-mono text-sm">
-                {hasVwap ? `$${vwap.toFixed(2)}` : '---'}
             </div>
           )
       }

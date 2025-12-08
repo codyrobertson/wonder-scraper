@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict, Any
 from sqlmodel import Field, SQLModel
 from sqlalchemy import Index, Column
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import JSON
 from datetime import datetime
 
 class MarketSnapshot(SQLModel, table=True):
@@ -67,7 +67,7 @@ class MarketPrice(SQLModel, table=True):
 
     # NFT Traits (for OpenSea/Blokpax listings)
     # Format: [{"trait_type": "Hierarchy", "value": "Spell"}, {"trait_type": "Artist", "value": "Romall Smith"}, ...]
-    traits: Optional[List[Dict[str, Any]]] = Field(default=None, sa_column=Column(JSONB))
+    traits: Optional[List[Dict[str, Any]]] = Field(default=None, sa_column=Column(JSON))
 
     scraped_at: datetime = Field(default_factory=datetime.utcnow)
 

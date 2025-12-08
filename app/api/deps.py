@@ -100,3 +100,17 @@ def get_current_user_optional(
     except PyJWTError:
         return None
 
+
+def get_current_superuser(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Get current user and verify they are a superuser.
+    """
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+    return current_user
+

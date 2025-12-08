@@ -23,6 +23,7 @@ import { Route as ResetPasswordImport } from './routes/reset-password'
 import { Route as IndexImport } from './routes/index'
 import { Route as AuthCallbackImport } from './routes/auth.callback'
 import { Route as CardsCardIdImport } from './routes/cards.$cardId'
+import { Route as AdminImport } from './routes/admin'
 
 // Create Virtual Routes
 
@@ -77,6 +78,11 @@ const IndexRoute = IndexImport.update({
 
 const CardsCardIdRoute = CardsCardIdImport.update({
   path: '/cards/$cardId',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const AdminRoute = AdminImport.update({
+  path: '/admin',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -154,6 +160,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CardsCardIdImport
       parentRoute: typeof rootRoute
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminImport
+      parentRoute: typeof rootRoute
+    }
   }
 }
 
@@ -170,6 +183,7 @@ export const routeTree = rootRoute.addChildren({
   PortfolioRoute,
   ProfileRoute,
   CardsCardIdRoute,
+  AdminRoute,
 })
 
 /* prettier-ignore-end */
