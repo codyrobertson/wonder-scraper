@@ -12,8 +12,9 @@ import { Tooltip } from '../components/ui/tooltip'
 import clsx from 'clsx'
 import { AddToPortfolioModal } from '../components/AddToPortfolioModal'
 import { TreatmentBadge } from '../components/TreatmentBadge'
-import { ProductSubtypeBadge } from '../components/ProductSubtypeBadge'
+import { ProductSubtypeBadge, getSubtypeColor } from '../components/ProductSubtypeBadge'
 import { LoginUpsellButton } from '../components/LoginUpsellOverlay'
+import { MetaVote } from '../components/MetaVote'
 import { auth } from '../utils/auth'
 
 type CardDetail = {
@@ -132,6 +133,19 @@ function getTreatmentColor(treatment: string): string {
 
     // Promo (rose)
     if (t.includes('promo')) return '#fb7185'
+
+    // === GRADED / PRESLAB ===
+    // Preslab TAG 10 (premium gold)
+    if (t.includes('preslab') && t.includes('10')) return '#fcd34d'
+
+    // Preslab TAG 9 (bright green)
+    if (t.includes('preslab') && t.includes('9')) return '#4ade80'
+
+    // Preslab TAG 8 (sky blue)
+    if (t.includes('preslab') && t.includes('8')) return '#38bdf8'
+
+    // Preslab TAG (ungraded/other - teal)
+    if (t.includes('preslab') || t.includes('tag')) return '#2dd4bf'
 
     // Proof / Sample (amber)
     if (t.includes('proof') || t.includes('sample')) return '#fbbf24'
@@ -461,6 +475,12 @@ function CardDetail() {
   const filteredData = useMemo(() => {
       if (!history) return []
       if (treatmentFilter === 'all') return history
+      // Handle subtype filter (prefixed with "subtype:")
+      if (treatmentFilter.startsWith('subtype:')) {
+          const subtype = treatmentFilter.replace('subtype:', '')
+          return history.filter(h => h.product_subtype === subtype)
+      }
+      // Handle treatment filter
       return history.filter(h => {
           const t = h.treatment || 'Classic Paper'
           return t === treatmentFilter
@@ -540,6 +560,9 @@ function CardDetail() {
           const adjustedTimestamp = saleDate.getTime() + offsetMs
 
           const treatment = h.treatment || 'Classic Paper'
+          const isCardSealed = card?.rarity_name?.toUpperCase() === 'SEALED'
+          // For sealed products, use subtype color; otherwise use treatment color
+          const pointColor = isCardSealed ? getSubtypeColor(h.product_subtype) : getTreatmentColor(treatment)
           return {
               id: `${h.id}-${index}`,
               date: saleDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }),
@@ -547,7 +570,8 @@ function CardDetail() {
               x: index,
               price: Number(h.price),
               treatment,
-              treatmentColor: getTreatmentColor(treatment),
+              product_subtype: h.product_subtype,
+              treatmentColor: pointColor,
               treatmentSimple: simplifyTreatment(treatment),
               title: h.title,
               listing_type: 'sold',
@@ -570,6 +594,8 @@ function CardDetail() {
       // Calculate spacing: use 6 hours between each active listing for visual clarity
       const activeData = sortedActive.map((h, index) => {
           const treatment = h.treatment || 'Classic Paper'
+          const isCardSealed = card?.rarity_name?.toUpperCase() === 'SEALED'
+          const pointColor = isCardSealed ? getSubtypeColor(h.product_subtype) : getTreatmentColor(treatment)
           return {
               id: `active-${h.id}-${index}`,
               date: 'Active',
@@ -577,7 +603,8 @@ function CardDetail() {
               x: soldData.length + index,
               price: Number(h.price),
               treatment,
-              treatmentColor: getTreatmentColor(treatment),
+              product_subtype: h.product_subtype,
+              treatmentColor: pointColor,
               treatmentSimple: simplifyTreatment(treatment),
               title: h.title,
               listing_type: 'active',
@@ -588,7 +615,7 @@ function CardDetail() {
       })
 
       return [...soldData, ...activeData]
-  }, [history, timeRange])
+  }, [history, timeRange, card?.rarity_name])
 
   // Calculate total sales count (ignoring time filter) for context
   const totalAllTimeSales = useMemo(() => {
@@ -637,6 +664,16 @@ function CardDetail() {
       return Array.from(s)
   }, [history])
 
+  // Check if this is a sealed product (uses subtypes instead of treatments)
+  const isSealed = card?.rarity_name?.toUpperCase() === 'SEALED'
+
+  // Get unique subtypes for sealed products
+  const uniqueSubtypes = useMemo(() => {
+      if (!history || !isSealed) return []
+      const s = new Set(history.map(h => h.product_subtype).filter(Boolean))
+      return Array.from(s) as string[]
+  }, [history, isSealed])
+
   if (isLoadingCard) {
     return (
         <div className="min-h-screen flex items-center justify-center bg-background text-foreground font-mono">
@@ -681,25 +718,25 @@ function CardDetail() {
                 
                 {/* Header Section */}
                 <div className="mb-10 border-b border-border pb-8">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                        <div>
-                            <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">
-                                    ID: {card.id.toString().padStart(4, '0')}
-                                </span>
-                                {/* Show different badges for NFT vs regular products */}
-                                {card.product_type === 'Proof' || card.name?.toLowerCase().includes('proof') || card.name?.toLowerCase().includes('collector box') ? (
-                                    <>
-                                        <span className="bg-cyan-900/50 text-cyan-400 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border border-cyan-700">
-                                            NFT
-                                        </span>
-                                        <Tooltip content={
-                                            card.name?.toLowerCase().includes('character proof') ? '0x05f08b01971cf70bcd4e743a8906790cfb9a8fb8' :
-                                            card.name?.toLowerCase().includes('collector box') ? '0x28a11da34a93712b1fde4ad15da217a3b14d9465' : 'Contract Address'
-                                        }>
-                                            <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded text-[10px] font-mono tracking-wider border border-zinc-700">
-                                                {card.name?.toLowerCase().includes('character proof') ? '0x05f0...a8fb' :
-                                                 card.name?.toLowerCase().includes('collector box') ? '0x28a1...d9465' : 'Contract'}
+                    {/* Title Section */}
+                    <div className="mb-6">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">
+                                ID: {card.id.toString().padStart(4, '0')}
+                            </span>
+                            {/* Show different badges for NFT vs regular products */}
+                            {card.product_type === 'Proof' || card.name?.toLowerCase().includes('proof') || card.name?.toLowerCase().includes('collector box') ? (
+                                <>
+                                    <span className="bg-cyan-900/50 text-cyan-400 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border border-cyan-700">
+                                        NFT
+                                    </span>
+                                    <Tooltip content={
+                                        card.name?.toLowerCase().includes('character proof') ? '0x05f08b01971cf70bcd4e743a8906790cfb9a8fb8' :
+                                        card.name?.toLowerCase().includes('collector box') ? '0x28a11da34a93712b1fde4ad15da217a3b14d9465' : 'Contract Address'
+                                    }>
+                                        <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded text-[10px] font-mono tracking-wider border border-zinc-700">
+                                            {card.name?.toLowerCase().includes('character proof') ? '0x05f0...a8fb' :
+                                             card.name?.toLowerCase().includes('collector box') ? '0x28a1...d9465' : 'Contract'}
                                             </span>
                                         </Tooltip>
                                     </>
@@ -708,55 +745,57 @@ function CardDetail() {
                                         Rarity: {card.rarity_name || card.rarity_id}
                                     </span>
                                 )}
-                            </div>
-                            <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-2">{card.name}</h1>
-                            <div className="text-sm text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2">
-                                <span className="w-2 h-2 bg-primary rounded-full"></span>
-                                {card.set_name}
-                                {/* Platform indicator for NFTs */}
-                                {(card.product_type === 'Proof' || card.name?.toLowerCase().includes('proof') || card.name?.toLowerCase().includes('collector box')) && (
-                                    <span className="text-cyan-400 text-[10px] ml-2">• OpenSea</span>
-                                )}
+                        </div>
+                        <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-2">{card.name}</h1>
+                        <div className="text-sm text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2">
+                            <span className="w-2 h-2 bg-primary rounded-full"></span>
+                            {card.set_name}
+                            {/* Platform indicator for NFTs */}
+                            {(card.product_type === 'Proof' || card.name?.toLowerCase().includes('proof') || card.name?.toLowerCase().includes('collector box')) && (
+                                <span className="text-cyan-400 text-[10px] ml-2">• OpenSea</span>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Metrics Row - Left aligned below title */}
+                    <div className="flex flex-wrap gap-8">
+                        <div>
+                            <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">Floor Price</div>
+                            <div className="text-4xl font-mono font-bold text-emerald-500">
+                                ${card.floor_price ? card.floor_price.toFixed(2) : (card.lowest_ask && card.lowest_ask > 0) ? card.lowest_ask.toFixed(2) : (card.latest_price?.toFixed(2) || '---')}
                             </div>
                         </div>
-                        
-                        <div className="flex gap-8 md:text-right">
-                            <div>
-                                <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">Floor Price</div>
-                                <div className="text-4xl font-mono font-bold text-emerald-500">
-                                    ${card.floor_price ? card.floor_price.toFixed(2) : (card.lowest_ask && card.lowest_ask > 0) ? card.lowest_ask.toFixed(2) : (card.latest_price?.toFixed(2) || '---')}
-                                </div>
+                        <div className="border-l border-border pl-8">
+                            <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">
+                                Fair Price
                             </div>
-                            <div className="hidden md:block border-l border-border pl-8">
-                                <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">
-                                    Fair Price
-                                </div>
-                                {isLoggedIn ? (
-                                    <div className="text-4xl font-mono font-bold">
-                                        ${pricingData?.fair_market_price?.toFixed(2) || card.vwap?.toFixed(2) || '---'}
-                                    </div>
-                                ) : (
-                                    <Tooltip content="Log in to see our Fair Market Price">
-                                        <div className="text-4xl font-mono font-bold blur-sm select-none cursor-help">
-                                            $XX.XX
-                                        </div>
-                                    </Tooltip>
-                                )}
-                            </div>
-                            <div className="hidden md:block border-l border-border pl-8">
-                                <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">30d Vol</div>
+                            {isLoggedIn ? (
                                 <div className="text-4xl font-mono font-bold">
-                                    {(card.volume_30d || 0).toLocaleString()}
+                                    ${pricingData?.fair_market_price?.toFixed(2) || card.vwap?.toFixed(2) || '---'}
                                 </div>
-                            </div>
-                            {/* Highest Confirmed Sale */}
-                            <div className="hidden lg:block border-l border-border pl-8">
-                                <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">Highest Sale</div>
-                                <div className="text-4xl font-mono font-bold text-emerald-600">
-                                    ${card.max_price ? card.max_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '---'}
-                                </div>
+                            ) : (
+                                <Tooltip content="Log in to see our Fair Market Price">
+                                    <div className="text-4xl font-mono font-bold blur-sm select-none cursor-help">
+                                        $XX.XX
+                                    </div>
+                                </Tooltip>
+                            )}
+                        </div>
+                        <div className="border-l border-border pl-8">
+                            <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">30d Vol</div>
+                            <div className="text-4xl font-mono font-bold">
+                                {(card.volume_30d || 0).toLocaleString()}
                             </div>
                         </div>
+                        {/* Highest Confirmed Sale */}
+                        <div className="border-l border-border pl-8">
+                            <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">Highest Sale</div>
+                            <div className="text-4xl font-mono font-bold text-emerald-600">
+                                ${card.max_price ? card.max_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '---'}
+                            </div>
+                        </div>
+                        {/* Is Meta - only for single cards, not sealed products */}
+                        {!isSealed && <MetaVote cardId={card.id} />}
                     </div>
                 </div>
 
@@ -874,26 +913,40 @@ function CardDetail() {
                                     </div>
 
                                     {/* Legend */}
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-4 flex-wrap">
                                         {chartType === 'scatter' && (
-                                            <>
-                                                <div className="flex items-center gap-1">
-                                                    <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-                                                    <span className="text-muted-foreground">Paper</span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                                                    <span className="text-muted-foreground">Foil</span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <div className="w-2 h-2 rounded-full bg-pink-400"></div>
-                                                    <span className="text-muted-foreground">Formless</span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <div className="w-2 h-2 rounded-full bg-amber-400"></div>
-                                                    <span className="text-muted-foreground">Serialized</span>
-                                                </div>
-                                            </>
+                                            isSealed && uniqueSubtypes.length > 0 ? (
+                                                // Show subtypes for sealed products
+                                                uniqueSubtypes.map(subtype => (
+                                                    <div key={subtype} className="flex items-center gap-1">
+                                                        <div
+                                                            className="w-2 h-2 rounded-full"
+                                                            style={{ backgroundColor: getSubtypeColor(subtype) }}
+                                                        />
+                                                        <span className="text-muted-foreground text-xs">{subtype}</span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                // Show treatments for regular cards
+                                                <>
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                                                        <span className="text-muted-foreground">Paper</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
+                                                        <span className="text-muted-foreground">Foil</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="w-2 h-2 rounded-full bg-pink-400"></div>
+                                                        <span className="text-muted-foreground">Formless</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                                                        <span className="text-muted-foreground">Serialized</span>
+                                                    </div>
+                                                </>
+                                            )
                                         )}
                                         <div className="flex items-center gap-1">
                                             <div className="w-2 h-2 bg-emerald-400" style={{ clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}></div>
@@ -935,7 +988,7 @@ function CardDetail() {
                                                             stroke="#3b82f6"
                                                             strokeDasharray="5 5"
                                                             strokeWidth={1.5}
-                                                            label={{ value: `FMP $${pricingData.fair_market_price.toFixed(2)}`, fill: '#3b82f6', fontSize: 9, position: 'left' }}
+                                                            label={{ value: `FMP $${pricingData.fair_market_price.toFixed(2)}`, fill: '#3b82f6', fontSize: 9, position: 'insideTopLeft' }}
                                                         />
                                                     )}
                                                     {/* Floor Price reference line */}
@@ -945,7 +998,7 @@ function CardDetail() {
                                                             stroke="#10b981"
                                                             strokeDasharray="3 3"
                                                             strokeWidth={1.5}
-                                                            label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: '#10b981', fontSize: 9, position: 'left' }}
+                                                            label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: '#10b981', fontSize: 9, position: 'insideTopLeft' }}
                                                         />
                                                     )}
                                                     <RechartsTooltip
@@ -1050,7 +1103,7 @@ function CardDetail() {
                                                             stroke="#3b82f6"
                                                             strokeDasharray="5 5"
                                                             strokeWidth={1.5}
-                                                            label={{ value: `FMP $${pricingData.fair_market_price.toFixed(2)}`, fill: '#3b82f6', fontSize: 9, position: 'left' }}
+                                                            label={{ value: `FMP $${pricingData.fair_market_price.toFixed(2)}`, fill: '#3b82f6', fontSize: 9, position: 'insideTopLeft' }}
                                                         />
                                                     )}
                                                     {/* Floor Price reference line */}
@@ -1060,7 +1113,7 @@ function CardDetail() {
                                                             stroke="#10b981"
                                                             strokeDasharray="3 3"
                                                             strokeWidth={1.5}
-                                                            label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: '#10b981', fontSize: 9, position: 'left' }}
+                                                            label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: '#10b981', fontSize: 9, position: 'insideTopLeft' }}
                                                         />
                                                     )}
                                                     <RechartsTooltip
@@ -1228,9 +1281,12 @@ function CardDetail() {
                                         value={treatmentFilter}
                                         onChange={(e) => setTreatmentFilter(e.target.value)}
                                     >
-                                        <option value="all">All Treatments</option>
+                                        <option value="all">{isSealed && uniqueSubtypes.length > 0 ? 'All Subtypes' : 'All Treatments'}</option>
                                         {uniqueTreatments.map(t => (
                                             <option key={t} value={t}>{t}</option>
+                                        ))}
+                                        {isSealed && uniqueSubtypes.length > 0 && uniqueSubtypes.map(s => (
+                                            <option key={`subtype-${s}`} value={`subtype:${s}`}>{s}</option>
                                         ))}
                                     </select>
                                 </div>

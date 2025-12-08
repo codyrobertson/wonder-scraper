@@ -3,6 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { api } from '../utils/auth'
 import { X, Plus, Minus, Wallet, Link as LinkIcon, Loader2 } from 'lucide-react'
 import clsx from 'clsx'
+import { SimpleDropdown } from './ui/dropdown'
 
 type CardInfo = {
     id: number
@@ -343,15 +344,12 @@ export function AddToPortfolioModal({ card, isOpen, onClose }: AddToPortfolioDra
                         <label className="block text-xs uppercase font-bold text-muted-foreground mb-2">
                             {productType === 'Single' ? 'Treatment' : productType === 'NFT' ? 'Rarity' : 'Condition'}
                         </label>
-                        <select
+                        <SimpleDropdown
                             value={form.treatment}
-                            onChange={(e) => setForm({ ...form, treatment: e.target.value })}
-                            className="w-full px-4 py-2 bg-background border border-border rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                            {treatmentOptions.map(t => (
-                                <option key={t} value={t}>{t}</option>
-                            ))}
-                        </select>
+                            onChange={(value) => setForm({ ...form, treatment: value })}
+                            options={treatmentOptions.map(t => ({ value: t, label: t }))}
+                            triggerClassName="font-mono"
+                        />
                     </div>
 
                     {/* Source / Marketplace */}
@@ -359,15 +357,12 @@ export function AddToPortfolioModal({ card, isOpen, onClose }: AddToPortfolioDra
                         <label className="block text-xs uppercase font-bold text-muted-foreground mb-2">
                             {isNFT ? 'Marketplace' : 'Where Purchased'}
                         </label>
-                        <select
+                        <SimpleDropdown
                             value={form.source}
-                            onChange={(e) => setForm({ ...form, source: e.target.value })}
-                            className="w-full px-4 py-2 bg-background border border-border rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                            {sourceOptions.map(s => (
-                                <option key={s} value={s}>{s}</option>
-                            ))}
-                        </select>
+                            onChange={(value) => setForm({ ...form, source: value })}
+                            options={sourceOptions.map(s => ({ value: s, label: s }))}
+                            triggerClassName="font-mono"
+                        />
                     </div>
 
                     {/* OpenSea URL (for NFTs when OpenSea is selected) */}

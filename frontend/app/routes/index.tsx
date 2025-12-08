@@ -7,6 +7,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { ArrowUpDown, Search, ArrowUp, ArrowDown, Calendar, TrendingUp, DollarSign, BarChart3, LayoutDashboard, ChevronLeft, ChevronRight, Plus, Package, Layers, Gem, Archive } from 'lucide-react'
 import clsx from 'clsx'
 import { Route as rootRoute } from './__root'
+import { Tooltip } from '../components/ui/tooltip'
+import { SimpleDropdown } from '../components/ui/dropdown'
 import { useTimePeriod } from '../context/TimePeriodContext'
 import { AddToPortfolioModal } from '../components/AddToPortfolioModal'
 
@@ -158,24 +160,30 @@ function Home() {
         return (
           <div className="max-w-[180px] md:max-w-none">
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-foreground truncate text-sm" title={row.getValue('name')}>{row.getValue('name')}</span>
+                <Tooltip content={row.getValue('name')}>
+                    <span className="font-bold text-foreground truncate text-sm">{row.getValue('name')}</span>
+                </Tooltip>
                 {isSingle && rarity && (
-                  <span className={clsx(
-                    "shrink-0 text-[8px] font-bold uppercase px-1 py-0.5 rounded",
-                    rarity === 'Mythic' ? 'text-amber-900 bg-amber-400' :
-                    rarity === 'Legendary' ? 'text-orange-900 bg-orange-400' :
-                    rarity === 'Epic' ? 'text-purple-900 bg-purple-400' :
-                    rarity === 'Rare' ? 'text-blue-900 bg-blue-400' :
-                    rarity === 'Uncommon' ? 'text-emerald-900 bg-emerald-400' :
-                    'text-zinc-900 bg-zinc-400'
-                  )} title={rarity}>
-                    {rarity}
-                  </span>
+                  <Tooltip content={rarity}>
+                      <span className={clsx(
+                        "shrink-0 text-[8px] font-bold uppercase px-1 py-0.5 rounded",
+                        rarity === 'Mythic' ? 'text-amber-900 bg-amber-400' :
+                        rarity === 'Legendary' ? 'text-orange-900 bg-orange-400' :
+                        rarity === 'Epic' ? 'text-purple-900 bg-purple-400' :
+                        rarity === 'Rare' ? 'text-blue-900 bg-blue-400' :
+                        rarity === 'Uncommon' ? 'text-emerald-900 bg-emerald-400' :
+                        'text-zinc-900 bg-zinc-400'
+                      )}>
+                        {rarity}
+                      </span>
+                  </Tooltip>
                 )}
                 {!isSingle && IconComponent && (
-                  <span className="shrink-0 text-muted-foreground/40" title={productType}>
-                    <IconComponent className="w-3.5 h-3.5" />
-                  </span>
+                  <Tooltip content={productType}>
+                      <span className="shrink-0 text-muted-foreground/40">
+                        <IconComponent className="w-3.5 h-3.5" />
+                      </span>
+                  </Tooltip>
                 )}
               </div>
               <div className="text-[10px] text-muted-foreground/70 uppercase truncate">{row.original.set_name}</div>
@@ -187,14 +195,15 @@ function Home() {
       accessorKey: 'floor_price', // Floor price = avg of 4 lowest sales (30d)
       sortingFn: (a, b) => ((a.original.floor_price ?? 0) - (b.original.floor_price ?? 0)),
       header: ({ column }) => (
-        <button
-          className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          title="Floor Price (avg of 4 lowest sales in 30d)"
-        >
-          Floor
-          <ArrowUpDown className="h-3 w-3" />
-        </button>
+        <Tooltip content="Floor Price (avg of 4 lowest sales in 30d)">
+            <button
+              className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
+              Floor
+              <ArrowUpDown className="h-3 w-3" />
+            </button>
+        </Tooltip>
       ),
       cell: ({ row }) => {
           // Use floor_price, fallback to vwap if no floor
@@ -223,37 +232,48 @@ function Home() {
         accessorKey: 'volume',
         sortingFn: (a, b) => ((a.original.volume ?? 0) - (b.original.volume ?? 0)),
         header: ({ column }) => (
-          <button
-            className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Vol
-            <ArrowUpDown className="h-3 w-3" />
-          </button>
+          <Tooltip content="Sales volume in selected time period">
+              <button
+                className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+              >
+                Vol
+                <ArrowUpDown className="h-3 w-3" />
+              </button>
+          </Tooltip>
         ),
         cell: ({ row }) => {
             const vol = row.original.volume ?? row.original.volume_30d ?? 0
             // Chevron indicators based on volume thresholds
             let chevrons = ''
             let colorClass = 'text-muted-foreground'
+            let chevronTooltip = ''
             if (vol >= 30) {
                 chevrons = '▲▲'
                 colorClass = 'text-emerald-500'
+                chevronTooltip = 'High volume (30+ sales)'
             } else if (vol >= 10) {
                 chevrons = '▲'
                 colorClass = 'text-emerald-400'
+                chevronTooltip = 'Good volume (10-29 sales)'
             } else if (vol > 0 && vol < 3) {
                 chevrons = '▼'
                 colorClass = 'text-red-400'
+                chevronTooltip = 'Low volume (1-2 sales)'
             } else if (vol === 0) {
                 chevrons = '▼▼'
                 colorClass = 'text-red-500'
+                chevronTooltip = 'No sales in period'
             }
 
             return (
                 <div className="flex items-center justify-end gap-1 font-mono text-sm">
                     <span>{vol}</span>
-                    {chevrons && <span className={clsx("text-[10px]", colorClass)}>{chevrons}</span>}
+                    {chevrons && (
+                        <Tooltip content={chevronTooltip}>
+                            <span className={clsx("text-[10px]", colorClass)}>{chevrons}</span>
+                        </Tooltip>
+                    )}
                 </div>
             )
         }
@@ -262,13 +282,15 @@ function Home() {
         accessorKey: 'latest_price',
         sortingFn: (a, b) => ((a.original.latest_price ?? 0) - (b.original.latest_price ?? 0)),
         header: ({ column }) => (
-          <button
-            className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Last Sale
-            <ArrowUpDown className="h-3 w-3" />
-          </button>
+          <Tooltip content="Most recent sale price and treatment">
+              <button
+                className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+              >
+                Last Sale
+                <ArrowUpDown className="h-3 w-3" />
+              </button>
+          </Tooltip>
         ),
         cell: ({ row }) => {
             const price = row.original.latest_price || 0
@@ -278,12 +300,11 @@ function Home() {
                 <div className="flex flex-col items-end">
                     <span className="font-mono text-sm">{price > 0 ? `$${price.toFixed(2)}` : '---'}</span>
                     {treatment && (
-                        <span
-                            className="text-[9px] text-muted-foreground max-w-[80px] truncate"
-                            title={rawTreatment}
-                        >
-                            {treatment}
-                        </span>
+                        <Tooltip content={rawTreatment}>
+                            <span className="text-[9px] text-muted-foreground max-w-[80px] truncate">
+                                {treatment}
+                            </span>
+                        </Tooltip>
                     )}
                 </div>
             )
@@ -293,13 +314,15 @@ function Home() {
         accessorKey: 'max_price',
         sortingFn: (a, b) => ((a.original.max_price ?? 0) - (b.original.max_price ?? 0)),
         header: ({ column }) => (
-          <button
-            className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            High
-            <ArrowUpDown className="h-3 w-3" />
-          </button>
+          <Tooltip content="Highest confirmed sale price">
+              <button
+                className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+              >
+                High
+                <ArrowUpDown className="h-3 w-3" />
+              </button>
+          </Tooltip>
         ),
         cell: ({ row }) => {
             const high = row.original.max_price || 0
@@ -310,13 +333,15 @@ function Home() {
         accessorKey: 'lowest_ask',
         sortingFn: (a, b) => ((a.original.lowest_ask ?? 0) - (b.original.lowest_ask ?? 0)),
         header: ({ column }) => (
-          <button
-            className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Ask
-            <ArrowUpDown className="h-3 w-3" />
-          </button>
+          <Tooltip content="Lowest active asking price">
+              <button
+                className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+              >
+                Ask
+                <ArrowUpDown className="h-3 w-3" />
+              </button>
+          </Tooltip>
         ),
         cell: ({ row }) => {
             const ask = row.original.lowest_ask || 0
@@ -327,13 +352,15 @@ function Home() {
         accessorKey: 'inventory',
         sortingFn: (a, b) => ((a.original.inventory ?? 0) - (b.original.inventory ?? 0)),
         header: ({ column }) => (
-          <button
-            className="hidden lg:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Listings
-            <ArrowUpDown className="h-3 w-3" />
-          </button>
+          <Tooltip content="Active listings count and estimated days to sell">
+              <button
+                className="hidden lg:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+              >
+                Listings
+                <ArrowUpDown className="h-3 w-3" />
+              </button>
+          </Tooltip>
         ),
         cell: ({ row }) => {
             const inv = row.original.inventory || 0
@@ -352,7 +379,9 @@ function Home() {
             return (
                 <div className="hidden lg:block text-right">
                     <div className="font-mono text-sm">{inv}</div>
-                    <div className={clsx("text-[9px]", daysClass)}>{daysDisplay} sell</div>
+                    <Tooltip content="Estimated days to sell current inventory at current sales velocity">
+                        <div className={clsx("text-[9px]", daysClass)}>{daysDisplay} sell</div>
+                    </Tooltip>
                 </div>
             )
         }
@@ -363,21 +392,22 @@ function Home() {
         cell: ({ row }) => {
             return (
                 <div className="flex justify-center">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            if (!user) {
-                                // Redirect to login if not logged in
-                                navigate({ to: '/login' })
-                                return
-                            }
-                            setTrackingCard(row.original)
-                        }}
-                        className="p-1.5 rounded border border-border hover:bg-primary hover:text-primary-foreground transition-colors group"
-                        title={user ? "Add to Portfolio" : "Login to track"}
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                    </button>
+                    <Tooltip content={user ? "Add to Portfolio" : "Login to track"}>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                if (!user) {
+                                    // Redirect to login if not logged in
+                                    navigate({ to: '/login' })
+                                    return
+                                }
+                                setTrackingCard(row.original)
+                            }}
+                            className="p-1.5 rounded border border-border hover:bg-primary hover:text-primary-foreground transition-colors group"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </button>
+                    </Tooltip>
                 </div>
             )
         }
@@ -483,48 +513,53 @@ function Home() {
             </div>
             
                         <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-                            <select
-                                className="flex-1 sm:flex-none bg-background px-3 py-1.5 rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary uppercase font-mono cursor-pointer hover:bg-muted transition-colors"
+                            <SimpleDropdown
                                 value={productType}
-                                onChange={e => {
-                                    setProductType(e.target.value)
-                                    analytics.trackFilterApplied('product_type', e.target.value)
+                                onChange={(value) => {
+                                    setProductType(value)
+                                    analytics.trackFilterApplied('product_type', value)
                                 }}
-                            >
-                                <option value="all">All Types</option>
-                                <option value="Single">Singles</option>
-                                <option value="Box">Boxes</option>
-                                <option value="Pack">Packs</option>
-                                <option value="Lot">Lots</option>
-                                <option value="Proof">Proofs</option>
-                            </select>
+                                options={[
+                                    { value: 'all', label: 'All Types' },
+                                    { value: 'Single', label: 'Singles' },
+                                    { value: 'Box', label: 'Boxes' },
+                                    { value: 'Pack', label: 'Packs' },
+                                    { value: 'Lot', label: 'Lots' },
+                                    { value: 'Proof', label: 'Proofs' },
+                                ]}
+                                size="sm"
+                                className="flex-1 sm:w-[110px]"
+                                triggerClassName="uppercase font-mono text-xs"
+                            />
 
-                            <div className="relative flex items-center flex-1 sm:flex-none">
-                                <Calendar className="absolute left-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                <select
-                                    className="w-full bg-background pl-9 pr-3 py-1.5 rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary uppercase font-mono cursor-pointer hover:bg-muted transition-colors"
-                    value={timePeriod}
-                    onChange={e => {
-                        setTimePeriod(e.target.value)
-                        analytics.trackFilterApplied('time_period', e.target.value)
-                    }}
-                >
-                    <option value="7d">7 Days</option>
-                    <option value="30d">30 Days</option>
-                    <option value="90d">90 Days</option>
-                    <option value="all">All Time</option>
-                </select>
-            </div>
+                            <SimpleDropdown
+                                value={timePeriod}
+                                onChange={(value) => {
+                                    setTimePeriod(value)
+                                    analytics.trackFilterApplied('time_period', value)
+                                }}
+                                options={[
+                                    { value: '7d', label: '7 Days' },
+                                    { value: '30d', label: '30 Days' },
+                                    { value: '90d', label: '90 Days' },
+                                    { value: 'all', label: 'All Time' },
+                                ]}
+                                size="sm"
+                                className="flex-1 sm:w-[100px]"
+                                triggerClassName="uppercase font-mono text-xs"
+                            />
             {/* Low Signal Filter */}
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                    type="checkbox"
-                    checked={hideLowSignal}
-                    onChange={e => setHideLowSignal(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-border bg-background text-primary focus:ring-1 focus:ring-primary cursor-pointer"
-                />
-                <span className="text-xs text-muted-foreground whitespace-nowrap">Hide Low Signal</span>
-            </label>
+            <Tooltip content="Hide cards with no confirmed sales (only asking prices)">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={hideLowSignal}
+                        onChange={e => setHideLowSignal(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-border bg-background text-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                    />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">Hide Low Signal</span>
+                </label>
+            </Tooltip>
         </div>
         </div>
       </div>
