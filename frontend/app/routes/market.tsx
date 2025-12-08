@@ -4,12 +4,14 @@ import { api, auth } from '../utils/auth'
 import { analytics } from '~/services/analytics'
 import { Route as rootRoute } from './__root'
 import { ArrowLeft, TrendingUp, ArrowUp, ArrowDown, Activity, Zap, BarChart3, DollarSign } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts'
+import { Tooltip } from '../components/ui/tooltip'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getSortedRowModel, SortingState, getPaginationRowModel } from '@tanstack/react-table'
 import { useState, useMemo, useEffect } from 'react'
 import clsx from 'clsx'
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Clock } from 'lucide-react'
 import { TreatmentBadge } from '../components/TreatmentBadge'
+import { LoginUpsellOverlay } from '../components/LoginUpsellOverlay'
 import {
   Select,
   SelectContent,
@@ -46,6 +48,9 @@ function MarketAnalysis() {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume_30d', desc: true }])
   const [timeFrame, setTimeFrame] = useState('30d')
   const [hideLowSignal, setHideLowSignal] = useState(true)
+
+  // Check if user is logged in
+  const isLoggedIn = auth.isAuthenticated()
 
   // Track market page view
   useEffect(() => {
@@ -157,7 +162,11 @@ function MarketAnalysis() {
       },
       {
           accessorKey: 'floor_price',
-          header: ({ column }) => <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>FLOOR</div>,
+          header: ({ column }) => (
+              <Tooltip content="Floor price (avg of 4 lowest sales)">
+                  <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>FLOOR</div>
+              </Tooltip>
+          ),
           cell: ({ row }) => {
               const price = row.original.floor_price || row.original.latest_price
               return <div className="text-right font-mono font-bold">{price ? `$${price.toFixed(2)}` : '---'}</div>
@@ -165,7 +174,11 @@ function MarketAnalysis() {
       },
       {
           accessorKey: 'price_delta_24h',
-          header: ({ column }) => <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>TREND</div>,
+          header: ({ column }) => (
+              <Tooltip content="Price change over selected time period">
+                  <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>TREND</div>
+              </Tooltip>
+          ),
           cell: ({ row }) => {
               const delta = row.original.price_delta_24h
               // Show dash if no meaningful trend data
@@ -181,12 +194,20 @@ function MarketAnalysis() {
       },
       {
           accessorKey: 'volume_30d',
-          header: ({ column }) => <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>VOL</div>,
+          header: ({ column }) => (
+              <Tooltip content="Number of sales in selected period">
+                  <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>VOL</div>
+              </Tooltip>
+          ),
           cell: ({ row }) => <div className="text-right font-mono">{row.original.volume_30d}</div>
       },
       {
           accessorKey: 'market_cap',
-          header: ({ column }) => <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>MKT CAP</div>,
+          header: ({ column }) => (
+              <Tooltip content="Market cap = floor price × volume">
+                  <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>MKT CAP</div>
+              </Tooltip>
+          ),
           cell: ({ row }) => {
               const cap = row.original.market_cap
               if (cap === 0 || !cap) return <div className="text-right font-mono text-muted-foreground">-</div>
@@ -204,7 +225,11 @@ function MarketAnalysis() {
       },
       {
           accessorKey: 'deal_rating',
-          header: ({ column }) => <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>DEAL RATING</div>,
+          header: ({ column }) => (
+              <Tooltip content="How much below (UNDER) or above (OVER) average price">
+                  <div className="text-right cursor-pointer" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>DEAL RATING</div>
+              </Tooltip>
+          ),
           cell: ({ row }) => {
               const rating = row.original.deal_rating
               // Negative deal rating means price is BELOW average (Good Deal)
@@ -295,59 +320,71 @@ function MarketAnalysis() {
 
             {/* KPI Dashboard - Wide Cards with Insights */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 flex-shrink-0">
-                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Assets Tracked</span>
+                <Tooltip content="Total unique cards with sales activity">
+                    <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] uppercase text-muted-foreground font-medium">Assets Tracked</span>
+                        </div>
+                        <div className="text-xl font-mono font-bold">{metrics.totalAssets}</div>
                     </div>
-                    <div className="text-xl font-mono font-bold">{metrics.totalAssets}</div>
-                </div>
+                </Tooltip>
 
-                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-[9px] uppercase text-muted-foreground font-medium">24h Volume</span>
+                <Tooltip content="Total units sold in selected time period">
+                    <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] uppercase text-muted-foreground font-medium">24h Volume</span>
+                        </div>
+                        <div className="text-xl font-mono font-bold">{metrics.totalVolume.toLocaleString()} <span className="text-xs text-muted-foreground">units</span></div>
                     </div>
-                    <div className="text-xl font-mono font-bold">{metrics.totalVolume.toLocaleString()} <span className="text-xs text-muted-foreground">units</span></div>
-                </div>
+                </Tooltip>
 
-                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Market Cap</span>
+                <Tooltip content="Total market value (floor price × volume)">
+                    <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] uppercase text-muted-foreground font-medium">Market Cap</span>
+                        </div>
+                        <div className="text-xl font-mono font-bold text-emerald-500">${(metrics.totalCap / 1000).toFixed(1)}k</div>
                     </div>
-                    <div className="text-xl font-mono font-bold text-emerald-500">${(metrics.totalCap / 1000).toFixed(1)}k</div>
-                </div>
+                </Tooltip>
 
-                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Market Sentiment</span>
+                <Tooltip content="Ratio of gainers vs losers (shows market direction)">
+                    <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] uppercase text-muted-foreground font-medium">Market Sentiment</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-lg font-mono font-bold text-emerald-500">{metrics.gainers}↑</span>
+                            <span className="text-lg font-mono font-bold text-red-500">{metrics.losers}↓</span>
+                            <span className="text-xs text-muted-foreground">{metrics.unchanged} flat</span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-lg font-mono font-bold text-emerald-500">{metrics.gainers}↑</span>
-                        <span className="text-lg font-mono font-bold text-red-500">{metrics.losers}↓</span>
-                        <span className="text-xs text-muted-foreground">{metrics.unchanged} flat</span>
-                    </div>
-                </div>
+                </Tooltip>
 
-                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.mostActive && navigate({ to: '/cards/$cardId', params: { cardId: metrics.mostActive.slug || String(metrics.mostActive.id) } })}>
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Most Active</span>
-                        <span className="text-[9px] text-primary">→</span>
+                <Tooltip content="Card with highest sales volume in period">
+                    <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.mostActive && navigate({ to: '/cards/$cardId', params: { cardId: metrics.mostActive.slug || String(metrics.mostActive.id) } })}>
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] uppercase text-muted-foreground font-medium">Most Active</span>
+                            <span className="text-[9px] text-primary">→</span>
+                        </div>
+                        <div className="truncate">
+                            <span className="text-sm font-bold">{metrics.mostActive?.name || '-'}</span>
+                            <span className="text-xs text-muted-foreground ml-2">{metrics.mostActive?.volume_30d || 0} trades</span>
+                        </div>
                     </div>
-                    <div className="truncate">
-                        <span className="text-sm font-bold">{metrics.mostActive?.name || '-'}</span>
-                        <span className="text-xs text-muted-foreground ml-2">{metrics.mostActive?.volume_30d || 0} trades</span>
-                    </div>
-                </div>
+                </Tooltip>
 
-                <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.highestValue && navigate({ to: '/cards/$cardId', params: { cardId: metrics.highestValue.slug || String(metrics.highestValue.id) } })}>
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-[9px] uppercase text-muted-foreground font-medium">Highest Value</span>
-                        <span className="text-[9px] text-primary">→</span>
+                <Tooltip content="Card with highest current floor price">
+                    <div className="bg-card border border-border px-4 py-2.5 rounded hover:border-primary/50 transition-colors cursor-pointer" onClick={() => metrics.highestValue && navigate({ to: '/cards/$cardId', params: { cardId: metrics.highestValue.slug || String(metrics.highestValue.id) } })}>
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] uppercase text-muted-foreground font-medium">Highest Value</span>
+                            <span className="text-[9px] text-primary">→</span>
+                        </div>
+                        <div className="truncate">
+                            <span className="text-sm font-bold">{metrics.highestValue?.name || '-'}</span>
+                            <span className="text-xs text-emerald-500 ml-2">${(metrics.highestValue?.floor_price || metrics.highestValue?.latest_price)?.toFixed(2) || '0'}</span>
+                        </div>
                     </div>
-                    <div className="truncate">
-                        <span className="text-sm font-bold">{metrics.highestValue?.name || '-'}</span>
-                        <span className="text-xs text-emerald-500 ml-2">${(metrics.highestValue?.floor_price || metrics.highestValue?.latest_price)?.toFixed(2) || '0'}</span>
-                    </div>
-                </div>
+                </Tooltip>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 overflow-hidden">
@@ -415,7 +452,14 @@ function MarketAnalysis() {
                 </div>
 
                 {/* Right Column: Detailed Table */}
-                <div className="lg:col-span-3 bg-card border border-border rounded flex flex-col min-h-0">
+                <div className="lg:col-span-3 bg-card border border-border rounded flex flex-col min-h-0 relative">
+                    {/* Login gate overlay for non-logged-in users */}
+                    {!isLoggedIn && (
+                        <LoginUpsellOverlay
+                            title="Unlock Market Analytics"
+                            description="Sign in to access detailed market depth, sorting, and real-time analytics."
+                        />
+                    )}
                     <div className="p-3 border-b border-border bg-muted/20 flex justify-between items-center">
                         <h3 className="text-xs font-bold uppercase tracking-widest">Market Depth & Analytics</h3>
                         <div className="text-[10px] text-muted-foreground">

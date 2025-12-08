@@ -1,4 +1,4 @@
-import { createRoute, Link, redirect } from '@tanstack/react-router'
+import { createRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, auth } from '../utils/auth'
 import { analytics } from '~/services/analytics'
@@ -7,8 +7,11 @@ import { ArrowLeft, TrendingUp, Trash2, Search, Edit, X, TrendingDown, BarChart3
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getSortedRowModel, SortingState, getFilteredRowModel } from '@tanstack/react-table'
 import { useMemo, useState, useEffect } from 'react'
 import clsx from 'clsx'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
 import { TreatmentBadge } from '../components/TreatmentBadge'
+import { Tooltip } from '../components/ui/tooltip'
+import { SimpleDropdown } from '../components/ui/dropdown'
+import { LoginUpsellOverlay } from '../components/LoginUpsellOverlay'
 
 // New individual card tracking type
 type PortfolioCard = {
@@ -49,11 +52,6 @@ export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: '/portfolio',
   component: Portfolio,
-  beforeLoad: () => {
-      if (typeof window !== 'undefined' && !auth.isAuthenticated()) {
-          throw redirect({ to: '/login' })
-      }
-  }
 })
 
 // Actual WOTF card treatments
@@ -87,6 +85,25 @@ const getTreatmentColor = (treatment: string): string => {
   return TREATMENT_COLORS[treatment] || PIE_COLORS[Object.keys(TREATMENT_COLORS).length % PIE_COLORS.length]
 }
 
+// Demo data for logged-out users
+const DEMO_PORTFOLIO: PortfolioCard[] = [
+  { id: 1, user_id: 0, card_id: 1, treatment: 'Classic Foil', source: 'eBay', purchase_price: 45.00, purchase_date: '2024-01-15', grading: null, notes: null, created_at: '', updated_at: '', card_name: 'Progo, the Guiding Light', card_set: 'Awakening', card_slug: 'progo-the-guiding-light', rarity_name: 'Rare', product_type: 'Single', market_price: 52.50, profit_loss: 7.50, profit_loss_percent: 16.7 },
+  { id: 2, user_id: 0, card_id: 2, treatment: 'Serialized', source: 'Blokpax', purchase_price: 125.00, purchase_date: '2024-02-20', grading: 'PSA 10', notes: null, created_at: '', updated_at: '', card_name: 'Deep Black Goop', card_set: 'Awakening', card_slug: 'deep-black-goop', rarity_name: 'Legendary', product_type: 'Single', market_price: 189.00, profit_loss: 64.00, profit_loss_percent: 51.2 },
+  { id: 3, user_id: 0, card_id: 3, treatment: 'Full Art Foil', source: 'TCGPlayer', purchase_price: 28.50, purchase_date: '2024-03-10', grading: null, notes: null, created_at: '', updated_at: '', card_name: 'Wandering Spirit', card_set: 'Awakening', card_slug: 'wandering-spirit', rarity_name: 'Epic', product_type: 'Single', market_price: 31.25, profit_loss: 2.75, profit_loss_percent: 9.6 },
+  { id: 4, user_id: 0, card_id: 4, treatment: 'Classic Paper', source: 'Pack Pull', purchase_price: 0.00, purchase_date: '2024-03-25', grading: null, notes: null, created_at: '', updated_at: '', card_name: 'Forest Guardian', card_set: 'Awakening', card_slug: 'forest-guardian', rarity_name: 'Common', product_type: 'Single', market_price: 1.25, profit_loss: 1.25, profit_loss_percent: 100 },
+  { id: 5, user_id: 0, card_id: 5, treatment: 'Formless Foil', source: 'Trade', purchase_price: 85.00, purchase_date: '2024-04-01', grading: null, notes: null, created_at: '', updated_at: '', card_name: 'Stellar Void', card_set: 'Awakening', card_slug: 'stellar-void', rarity_name: 'Legendary', product_type: 'Single', market_price: 72.00, profit_loss: -13.00, profit_loss_percent: -15.3 },
+]
+
+const DEMO_SUMMARY: PortfolioSummary = {
+  total_cards: 5,
+  total_cost_basis: 283.50,
+  total_market_value: 346.00,
+  total_profit_loss: 62.50,
+  total_profit_loss_percent: 22.0,
+  by_treatment: { 'Classic Foil': { count: 1, cost: 45, value: 52.5 }, 'Serialized': { count: 1, cost: 125, value: 189 }, 'Full Art Foil': { count: 1, cost: 28.5, value: 31.25 }, 'Classic Paper': { count: 1, cost: 0, value: 1.25 }, 'Formless Foil': { count: 1, cost: 85, value: 72 } },
+  by_source: { 'eBay': { count: 1, cost: 45, value: 52.5 }, 'Blokpax': { count: 1, cost: 125, value: 189 }, 'TCGPlayer': { count: 1, cost: 28.5, value: 31.25 }, 'Pack Pull': { count: 1, cost: 0, value: 1.25 }, 'Trade': { count: 1, cost: 85, value: 72 } }
+}
+
 function Portfolio() {
   const queryClient = useQueryClient()
   const [editingCard, setEditingCard] = useState<PortfolioCard | null>(null)
@@ -104,13 +121,16 @@ function Portfolio() {
   const [filterGraded, setFilterGraded] = useState<string>('')
   const [showFilters, setShowFilters] = useState(false)
 
+  // Check if user is logged in
+  const isLoggedIn = auth.isAuthenticated()
+
   // Track portfolio access
   useEffect(() => {
     analytics.trackPortfolioAccess()
   }, [])
 
-  // Fetch Portfolio Cards (new individual tracking)
-  const { data: portfolio, isLoading } = useQuery({
+  // Fetch Portfolio Cards (new individual tracking) - only when logged in
+  const { data: portfolioData, isLoading } = useQuery({
     queryKey: ['portfolio-cards', filterTreatment, filterSource, filterGraded],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -122,18 +142,20 @@ function Portfolio() {
       return await api.get(`portfolio/cards${queryString ? '?' + queryString : ''}`).json<PortfolioCard[]>()
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - portfolio data is user-specific
+    enabled: isLoggedIn, // Only fetch when logged in
   })
 
-  // Fetch Portfolio Summary
-  const { data: summary } = useQuery({
+  // Fetch Portfolio Summary - only when logged in
+  const { data: summaryData } = useQuery({
     queryKey: ['portfolio-summary'],
     queryFn: async () => {
       return await api.get('portfolio/cards/summary').json<PortfolioSummary>()
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
+    enabled: isLoggedIn,
   })
 
-  // Fetch Portfolio Value History
+  // Fetch Portfolio Value History - only when logged in
   const { data: valueHistory } = useQuery({
     queryKey: ['portfolio-value-history'],
     queryFn: async () => {
@@ -143,7 +165,12 @@ function Portfolio() {
       }>()
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - history changes slowly
+    enabled: isLoggedIn,
   })
+
+  // Use demo data for logged-out users
+  const portfolio = isLoggedIn ? portfolioData : DEMO_PORTFOLIO
+  const summary = isLoggedIn ? summaryData : DEMO_SUMMARY
 
   // Update Mutation (PATCH for individual cards)
   const updateMutation = useMutation({
@@ -320,28 +347,30 @@ function Portfolio() {
           id: 'actions',
           cell: ({ row }) => (
               <div className="text-right flex items-center justify-end gap-2">
-                  <button
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        handleEditClick(row.original)
-                    }}
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                    title="Edit"
-                  >
-                      <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        if (confirm('Remove this card from your portfolio?')) {
-                            deleteMutation.mutate(row.original.id)
-                        }
-                    }}
-                    className="text-muted-foreground hover:text-red-500 transition-colors"
-                    title="Remove from Portfolio"
-                  >
-                      <Trash2 className="w-4 h-4" />
-                  </button>
+                  <Tooltip content="Edit">
+                      <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditClick(row.original)
+                        }}
+                        className="text-muted-foreground hover:text-primary transition-colors"
+                      >
+                          <Edit className="w-4 h-4" />
+                      </button>
+                  </Tooltip>
+                  <Tooltip content="Remove from Portfolio">
+                      <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm('Remove this card from your portfolio?')) {
+                                deleteMutation.mutate(row.original.id)
+                            }
+                        }}
+                        className="text-muted-foreground hover:text-red-500 transition-colors"
+                      >
+                          <Trash2 className="w-4 h-4" />
+                      </button>
+                  </Tooltip>
               </div>
           )
       }
@@ -369,7 +398,15 @@ function Portfolio() {
   }
 
   return (
-    <div className="p-6 min-h-screen bg-background text-foreground font-mono">
+    <div className="p-6 min-h-screen bg-background text-foreground font-mono relative">
+        {/* Login Upsell Overlay for logged-out users */}
+        {!isLoggedIn && (
+            <LoginUpsellOverlay
+                title="Track Your Collection"
+                description="Sign in to track your portfolio, monitor P/L, and see your collection's value over time."
+            />
+        )}
+
         <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="mb-8 flex justify-between items-center">
@@ -386,31 +423,39 @@ function Portfolio() {
 
             {/* Portfolio Summary - Inline Stats with Mini Pie Charts */}
             <div className="flex flex-wrap items-center gap-6 mb-6 text-sm">
-                <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                    <span className="text-[10px] text-muted-foreground uppercase">Value</span>
-                    <span className="font-mono font-bold text-lg">${stats.totalValue.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-500"></div>
-                    <span className="text-[10px] text-muted-foreground uppercase">Cost</span>
-                    <span className="font-mono text-muted-foreground text-lg">${stats.totalCost.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className={clsx("w-1.5 h-1.5 rounded-full", stats.totalGain >= 0 ? "bg-emerald-500" : "bg-red-500")}></div>
-                    <span className="text-[10px] text-muted-foreground uppercase">Return</span>
-                    <span className={clsx("font-mono font-bold text-lg", stats.totalGain >= 0 ? "text-emerald-500" : "text-red-500")}>
-                        {stats.totalGain >= 0 ? '+' : ''}${Math.abs(stats.totalGain).toFixed(2)}
-                    </span>
-                    <span className={clsx("text-xs", stats.totalGain >= 0 ? "text-emerald-500" : "text-red-500")}>
-                        ({stats.totalGain >= 0 ? '+' : ''}{stats.totalGainPercent.toFixed(1)}%)
-                    </span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                    <span className="text-[10px] text-muted-foreground uppercase">Cards</span>
-                    <span className="font-mono font-bold text-lg">{stats.count}</span>
-                </div>
+                <Tooltip content="Current market value of all cards">
+                    <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                        <span className="text-[10px] text-muted-foreground uppercase">Value</span>
+                        <span className="font-mono font-bold text-lg">${stats.totalValue.toFixed(2)}</span>
+                    </div>
+                </Tooltip>
+                <Tooltip content="Total amount paid for all cards (cost basis)">
+                    <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-gray-500"></div>
+                        <span className="text-[10px] text-muted-foreground uppercase">Cost</span>
+                        <span className="font-mono text-muted-foreground text-lg">${stats.totalCost.toFixed(2)}</span>
+                    </div>
+                </Tooltip>
+                <Tooltip content="Unrealized profit/loss if sold at current market prices">
+                    <div className="flex items-center gap-2">
+                        <div className={clsx("w-1.5 h-1.5 rounded-full", stats.totalGain >= 0 ? "bg-emerald-500" : "bg-red-500")}></div>
+                        <span className="text-[10px] text-muted-foreground uppercase">Return</span>
+                        <span className={clsx("font-mono font-bold text-lg", stats.totalGain >= 0 ? "text-emerald-500" : "text-red-500")}>
+                            {stats.totalGain >= 0 ? '+' : ''}${Math.abs(stats.totalGain).toFixed(2)}
+                        </span>
+                        <span className={clsx("text-xs", stats.totalGain >= 0 ? "text-emerald-500" : "text-red-500")}>
+                            ({stats.totalGain >= 0 ? '+' : ''}{stats.totalGainPercent.toFixed(1)}%)
+                        </span>
+                    </div>
+                </Tooltip>
+                <Tooltip content="Total cards in your portfolio">
+                    <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                        <span className="text-[10px] text-muted-foreground uppercase">Cards</span>
+                        <span className="font-mono font-bold text-lg">{stats.count}</span>
+                    </div>
+                </Tooltip>
 
                 {/* Mini Pie Charts with Tooltip Legends */}
                 {treatmentPieData.length > 0 && (
@@ -427,7 +472,9 @@ function Portfolio() {
                             </ResponsiveContainer>
                         </div>
                         <span className="text-[10px] text-muted-foreground uppercase">Treatment</span>
-                        <span className="w-4 h-4 rounded-full bg-muted flex items-center justify-center text-[9px] text-muted-foreground cursor-help">i</span>
+                        <Tooltip content="Breakdown by card treatment type">
+                            <span className="w-4 h-4 rounded-full bg-muted flex items-center justify-center text-[9px] text-muted-foreground cursor-help">i</span>
+                        </Tooltip>
                         {/* Tooltip */}
                         <div className="absolute left-0 top-full mt-2 z-50 hidden group-hover:block bg-card border border-border rounded-lg p-3 shadow-xl min-w-[140px]">
                             <div className="text-[10px] uppercase text-muted-foreground mb-2 font-bold">By Treatment</div>
@@ -457,7 +504,9 @@ function Portfolio() {
                             </ResponsiveContainer>
                         </div>
                         <span className="text-[10px] text-muted-foreground uppercase">Source</span>
-                        <span className="w-4 h-4 rounded-full bg-muted flex items-center justify-center text-[9px] text-muted-foreground cursor-help">i</span>
+                        <Tooltip content="Breakdown by purchase source">
+                            <span className="w-4 h-4 rounded-full bg-muted flex items-center justify-center text-[9px] text-muted-foreground cursor-help">i</span>
+                        </Tooltip>
                         {/* Tooltip */}
                         <div className="absolute left-0 top-full mt-2 z-50 hidden group-hover:block bg-card border border-border rounded-lg p-3 shadow-xl min-w-[120px]">
                             <div className="text-[10px] uppercase text-muted-foreground mb-2 font-bold">By Source</div>
@@ -498,7 +547,7 @@ function Portfolio() {
                                     tickFormatter={(v) => `$${v}`}
                                     domain={['auto', 'auto']}
                                 />
-                                <Tooltip
+                                <RechartsTooltip
                                     contentStyle={{
                                         backgroundColor: '#1a1a1a',
                                         border: '1px solid #333',
@@ -564,41 +613,43 @@ function Portfolio() {
                     <div className="px-6 py-4 border-b border-border bg-muted/10 flex flex-wrap gap-4 items-center">
                         <div className="flex items-center gap-2">
                             <label className="text-xs uppercase text-muted-foreground">Treatment:</label>
-                            <select
+                            <SimpleDropdown
                                 value={filterTreatment}
-                                onChange={(e) => setFilterTreatment(e.target.value)}
-                                className="text-sm bg-background border border-border rounded px-2 py-1"
-                            >
-                                <option value="">All</option>
-                                {TREATMENTS.map(t => (
-                                    <option key={t} value={t}>{t}</option>
-                                ))}
-                            </select>
+                                onChange={setFilterTreatment}
+                                options={[
+                                    { value: '', label: 'All' },
+                                    ...TREATMENTS.map(t => ({ value: t, label: t }))
+                                ]}
+                                size="sm"
+                                className="w-[140px]"
+                            />
                         </div>
                         <div className="flex items-center gap-2">
                             <label className="text-xs uppercase text-muted-foreground">Source:</label>
-                            <select
+                            <SimpleDropdown
                                 value={filterSource}
-                                onChange={(e) => setFilterSource(e.target.value)}
-                                className="text-sm bg-background border border-border rounded px-2 py-1"
-                            >
-                                <option value="">All</option>
-                                {SOURCES.map(s => (
-                                    <option key={s} value={s}>{s}</option>
-                                ))}
-                            </select>
+                                onChange={setFilterSource}
+                                options={[
+                                    { value: '', label: 'All' },
+                                    ...SOURCES.map(s => ({ value: s, label: s }))
+                                ]}
+                                size="sm"
+                                className="w-[120px]"
+                            />
                         </div>
                         <div className="flex items-center gap-2">
                             <label className="text-xs uppercase text-muted-foreground">Grading:</label>
-                            <select
+                            <SimpleDropdown
                                 value={filterGraded}
-                                onChange={(e) => setFilterGraded(e.target.value)}
-                                className="text-sm bg-background border border-border rounded px-2 py-1"
-                            >
-                                <option value="">All</option>
-                                <option value="graded">Graded Only</option>
-                                <option value="raw">Raw Only</option>
-                            </select>
+                                onChange={setFilterGraded}
+                                options={[
+                                    { value: '', label: 'All' },
+                                    { value: 'graded', label: 'Graded Only' },
+                                    { value: 'raw', label: 'Raw Only' },
+                                ]}
+                                size="sm"
+                                className="w-[120px]"
+                            />
                         </div>
                         {hasActiveFilters && (
                             <button
@@ -691,30 +742,26 @@ function Portfolio() {
                                 <label className="block text-xs uppercase font-bold text-muted-foreground mb-2">
                                     Treatment
                                 </label>
-                                <select
+                                <SimpleDropdown
                                     value={editForm.treatment}
-                                    onChange={(e) => setEditForm({ ...editForm, treatment: e.target.value })}
-                                    className="w-full px-4 py-2 bg-background border border-border rounded font-mono focus:outline-none focus:ring-2 focus:ring-primary"
-                                >
-                                    {TREATMENTS.map(t => (
-                                        <option key={t} value={t}>{t}</option>
-                                    ))}
-                                </select>
+                                    onChange={(value) => setEditForm({ ...editForm, treatment: value })}
+                                    options={TREATMENTS.map(t => ({ value: t, label: t }))}
+                                    className="w-full"
+                                    triggerClassName="font-mono"
+                                />
                             </div>
 
                             <div>
                                 <label className="block text-xs uppercase font-bold text-muted-foreground mb-2">
                                     Source
                                 </label>
-                                <select
+                                <SimpleDropdown
                                     value={editForm.source}
-                                    onChange={(e) => setEditForm({ ...editForm, source: e.target.value })}
-                                    className="w-full px-4 py-2 bg-background border border-border rounded font-mono focus:outline-none focus:ring-2 focus:ring-primary"
-                                >
-                                    {SOURCES.map(s => (
-                                        <option key={s} value={s}>{s}</option>
-                                    ))}
-                                </select>
+                                    onChange={(value) => setEditForm({ ...editForm, source: value })}
+                                    options={SOURCES.map(s => ({ value: s, label: s }))}
+                                    className="w-full"
+                                    triggerClassName="font-mono"
+                                />
                             </div>
 
                             <div>

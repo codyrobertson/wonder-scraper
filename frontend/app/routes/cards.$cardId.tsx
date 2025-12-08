@@ -7,11 +7,14 @@ import { ArrowLeft, TrendingUp, Wallet, Filter, ChevronLeft, ChevronRight, X, Ex
 import { Link } from '@tanstack/react-router'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getPaginationRowModel, getFilteredRowModel } from '@tanstack/react-table'
 import { useMemo, useState, useEffect } from 'react'
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ReferenceLine, ScatterChart, Scatter, Cell, ComposedChart } from 'recharts'
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Legend, ReferenceLine, ScatterChart, Scatter, Cell, ComposedChart } from 'recharts'
+import { Tooltip } from '../components/ui/tooltip'
 import clsx from 'clsx'
 import { AddToPortfolioModal } from '../components/AddToPortfolioModal'
 import { TreatmentBadge } from '../components/TreatmentBadge'
 import { ProductSubtypeBadge } from '../components/ProductSubtypeBadge'
+import { LoginUpsellButton } from '../components/LoginUpsellOverlay'
+import { auth } from '../utils/auth'
 
 type CardDetail = {
   id: number
@@ -231,6 +234,9 @@ function CardDetail() {
   const [reportSubmitting, setReportSubmitting] = useState(false)
   const [reportSubmitted, setReportSubmitted] = useState(false)
 
+  // Check if user is logged in
+  const isLoggedIn = auth.isAuthenticated()
+
   // Track card listing view (with session-based milestone tracking)
   useEffect(() => {
     if (cardId) {
@@ -374,9 +380,11 @@ function CardDetail() {
               } else if (isActive && listedAt) {
                   // For active listings, show when it was first listed
                   return (
-                      <span className="text-muted-foreground" title="First seen">
-                          {new Date(listedAt).toLocaleDateString()}
-                      </span>
+                      <Tooltip content="First seen">
+                          <span className="text-muted-foreground">
+                              {new Date(listedAt).toLocaleDateString()}
+                          </span>
+                      </Tooltip>
                   )
               } else if (scrapedAt) {
                   // Fallback to scraped_at
@@ -429,7 +437,9 @@ function CardDetail() {
                               PSA {grading.grade}
                           </span>
                       )}
-                      <div className="truncate max-w-lg text-xs text-muted-foreground" title={row.original.title}>{row.original.title}</div>
+                      <Tooltip content={row.original.title}>
+                          <div className="truncate max-w-lg text-xs text-muted-foreground">{row.original.title}</div>
+                      </Tooltip>
                   </div>
               )
           }
@@ -683,13 +693,15 @@ function CardDetail() {
                                         <span className="bg-cyan-900/50 text-cyan-400 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border border-cyan-700">
                                             NFT
                                         </span>
-                                        <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded text-[10px] font-mono tracking-wider border border-zinc-700" title={
+                                        <Tooltip content={
                                             card.name?.toLowerCase().includes('character proof') ? '0x05f08b01971cf70bcd4e743a8906790cfb9a8fb8' :
-                                            card.name?.toLowerCase().includes('collector box') ? '0x28a11da34a93712b1fde4ad15da217a3b14d9465' : ''
+                                            card.name?.toLowerCase().includes('collector box') ? '0x28a11da34a93712b1fde4ad15da217a3b14d9465' : 'Contract Address'
                                         }>
-                                            {card.name?.toLowerCase().includes('character proof') ? '0x05f0...a8fb' :
-                                             card.name?.toLowerCase().includes('collector box') ? '0x28a1...d9465' : 'Contract'}
-                                        </span>
+                                            <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded text-[10px] font-mono tracking-wider border border-zinc-700">
+                                                {card.name?.toLowerCase().includes('character proof') ? '0x05f0...a8fb' :
+                                                 card.name?.toLowerCase().includes('collector box') ? '0x28a1...d9465' : 'Contract'}
+                                            </span>
+                                        </Tooltip>
                                     </>
                                 ) : (
                                     <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border border-zinc-700">
@@ -719,9 +731,17 @@ function CardDetail() {
                                 <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">
                                     Fair Price
                                 </div>
-                                <div className="text-4xl font-mono font-bold">
-                                    ${pricingData?.fair_market_price?.toFixed(2) || card.vwap?.toFixed(2) || '---'}
-                                </div>
+                                {isLoggedIn ? (
+                                    <div className="text-4xl font-mono font-bold">
+                                        ${pricingData?.fair_market_price?.toFixed(2) || card.vwap?.toFixed(2) || '---'}
+                                    </div>
+                                ) : (
+                                    <Tooltip content="Log in to see our Fair Market Price">
+                                        <div className="text-4xl font-mono font-bold blur-sm select-none cursor-help">
+                                            $XX.XX
+                                        </div>
+                                    </Tooltip>
+                                )}
                             </div>
                             <div className="hidden md:block border-l border-border pl-8">
                                 <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">30d Vol</div>
@@ -928,7 +948,7 @@ function CardDetail() {
                                                             label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: '#10b981', fontSize: 9, position: 'left' }}
                                                         />
                                                     )}
-                                                    <Tooltip
+                                                    <RechartsTooltip
                                                         cursor={{ strokeDasharray: '3 3', stroke: '#71717a' }}
                                                         content={({ active, payload }) => {
                                                             if (active && payload && payload.length) {
@@ -1043,7 +1063,7 @@ function CardDetail() {
                                                             label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: '#10b981', fontSize: 9, position: 'left' }}
                                                         />
                                                     )}
-                                                    <Tooltip
+                                                    <RechartsTooltip
                                                         cursor={{ strokeDasharray: '3 3', stroke: '#71717a' }}
                                                         content={({ active, payload }) => {
                                                             if (active && payload && payload.length) {
@@ -1157,7 +1177,9 @@ function CardDetail() {
 
                     {/* Fair Market Price by Treatment - Horizontal Text Row */}
                     {pricingData?.by_treatment && pricingData.by_treatment.length > 0 && (
-                        <div className="border border-border rounded bg-card px-4 py-3">
+                        <div className="border border-border rounded bg-card px-4 py-3 relative">
+                            {/* Login gate overlay */}
+                            {!isLoggedIn && <LoginUpsellButton title="Sign in to view" />}
                             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                                 <div className="flex items-center gap-2">
                                     <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
