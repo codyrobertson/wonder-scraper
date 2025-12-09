@@ -1,0 +1,137 @@
+
++==============================================================================+
+|                 WONDERS OF THE FIRST - EBAY PRICING ANALYSIS                 |
+|                       Sep 10 - Dec 09, 2025 (90 days)                        |
++==============================================================================+
+
+================================================================================
+  METHODOLOGY
+================================================================================
+  This analysis uses TREATMENT-MATCHED comparisons:
+  - Floor Price = Minimum active eBay listing for SAME card + SAME treatment
+  - Example: A 'Phoenix Quill (Formless Foil)' sale is compared ONLY to
+    other 'Phoenix Quill (Formless Foil)' active listings, not Paper/OCM/etc.
+  - Sales without treatment data are excluded from this analysis
+
+  DEFINITIONS:
+  - 'Below Floor' = Sold price < lowest active listing (same card+treatment)
+  - 'X% below' = Sold for X% less than the floor price
+
+================================================================================
+  DATA QUALITY
+================================================================================
+  Total eBay Sales (period):     2,255
+  Sales with Treatment Data:     2,255 (100.0%)
+  Sales with Seller Data:        164 (7.3%)
+  Unique Cards Sold:             371
+
+================================================================================
+  TREATMENT-MATCHED FLOOR ANALYSIS
+================================================================================
+  Sales Analyzed:              1,624
+  Sales Below Floor:           866 (53.3%)
+
+  BY DISCOUNT DEPTH:
+    Any amount below floor:    866 sales  (53.3%)
+    10%+ below floor:          719 sales  (44.3%)
+    20%+ below floor:          601 sales  (37.0%)
+    30%+ below floor:          465 sales  (28.6%)
+    50%+ below floor:          225 sales  (13.9%)
+
+  Average Sale Price:          $43.02
+  Average Floor Price:         $20.57
+
+================================================================================
+  PRICE DISTRIBUTION (vs Treatment-Matched Floor)
+================================================================================
+  50%+ below     | █████████████░░░░░░░░░░░░░░░░░ |  234 ( 14.4%)
+  30-50% below   | ██████████████░░░░░░░░░░░░░░░░ |  237 ( 14.6%)
+  20-30% below   | ████████░░░░░░░░░░░░░░░░░░░░░░ |  135 (  8.3%)
+  10-20% below   | ███████░░░░░░░░░░░░░░░░░░░░░░░ |  122 (  7.5%)
+  0-10% below    | ███████████░░░░░░░░░░░░░░░░░░░ |  190 ( 11.7%)
+  0-10% above    | █████░░░░░░░░░░░░░░░░░░░░░░░░░ |   89 (  5.5%)
+  10-25% above   | ██████░░░░░░░░░░░░░░░░░░░░░░░░ |  115 (  7.1%)
+  25%+ above     | ██████████████████████████████ |  502 ( 30.9%)
+
+================================================================================
+  ANALYSIS BY TREATMENT (10+ sales minimum)
+================================================================================
+  Treatment          |  Sales | <Floor |    Rate |   Avg Sale |  Avg Floor
+  ---------------------------------------------------------------------------
+  Formless Foil      |    609 |    404 |   66.3% |     $22.47 |     $16.95
+  Classic Paper      |    495 |    236 |   47.7% |     $15.05 |     $11.67
+  Classic Foil       |    223 |    138 |   61.9% |     $12.46 |     $14.61
+  Sealed             |    211 |     21 |   10.0% |    $175.73 |     $21.37
+  OCM Serialized     |     78 |     64 |   82.1% |     $82.22 |    $108.88
+
+================================================================================
+  BY PRODUCT TYPE
+================================================================================
+  Type       |  Sales | <Floor |    Rate |   Avg Sale |  Avg Floor
+  ------------------------------------------------------------
+  Single     |   1408 |    844 |   59.9% |     $21.66 |     $20.09
+  Pack       |     91 |      5 |    5.5% |     $44.03 |     $10.94
+  Box        |     81 |      8 |    9.9% |    $312.13 |     $31.42
+  Bundle     |     44 |      9 |   20.5% |    $229.28 |     $35.85
+
+================================================================================
+  CARDS WITH REPEAT BELOW-FLOOR SALES (2+ occurrences)
+================================================================================
+   1. Moonfire Crystal Mouse (Formless Foil)
+      10x below floor out of 14 sales | Floor: $42.50 | Avg Sold: $100.36 (28% below)
+   2. Emma "Fixem" Shockbite (Classic Paper)
+      10x below floor out of 20 sales | Floor: $14.99 | Avg Sold: $15.61 (16% below)
+   3. Arcane Grasp (Formless Foil)
+      9x below floor out of 9 sales | Floor: $25.00 | Avg Sold: $8.30 (67% below)
+   4. Lo Lynn (Classic Paper)
+      9x below floor out of 9 sales | Floor: $20.00 | Avg Sold: $9.73 (51% below)
+   5. Sylira Shadowstalker (Formless Foil)
+      9x below floor out of 9 sales | Floor: $17.50 | Avg Sold: $13.46 (23% below)
+   6. Aetherion of Boundless (Classic Foil)
+      8x below floor out of 8 sales | Floor: $38.00 | Avg Sold: $19.48 (49% below)
+   7. John Breakbang (Classic Paper)
+      8x below floor out of 8 sales | Floor: $34.50 | Avg Sold: $21.00 (39% below)
+   8. Redstooling Hunter (OCM Serialized)
+      8x below floor out of 8 sales | Floor: $99.99 | Avg Sold: $63.72 (36% below)
+   9. Wonders of the First Booster Box (Sealed)
+      8x below floor out of 51 sales | Floor: $34.99 | Avg Sold: $286.55 (14% below)
+  10. Existence Play Booster Bundle (Sealed)
+      8x below floor out of 40 sales | Floor: $34.99 | Avg Sold: $245.29 (13% below)
+  11. Cairnvox Soulforger (OCM Serialized)
+      7x below floor out of 7 sales | Floor: $160.96 | Avg Sold: $90.71 (44% below)
+  12. Darkiron City (Formless Foil)
+      7x below floor out of 9 sales | Floor: $14.50 | Avg Sold: $12.00 (33% below)
+
+================================================================================
+  NOTABLE BELOW-FLOOR SALES (30%+ discount, 2+ active listings)
+================================================================================
+  [Date]  Card (Treatment)                                    Sold      Floor   Disc
+  ------------------------------------------------------------------------------
+  [10/28] Wave Whisperer Bay (Classic Foil)                     $0.01     $2.99  100%
+  [11/02] Catch (Classic Foil)                                  $0.01     $2.99  100%
+  [10/28] Ranidae Hopmaster (Classic Foil)                      $0.01     $1.99   99%
+  [11/02] Patch Squibbler (Classic Foil)                        $0.01     $0.99   99%
+  [10/28] Circuitious Q-7 (Classic Foil)                        $0.01     $0.99   99%
+  [11/03] Sir Reynard (Classic Foil)                            $0.25     $8.00   97%
+  [11/07] Sequestering Presence (Classic Foil)                  $0.25     $5.00   95%
+  [10/04] Autumn, Essence Animated (Classic Paper)              $1.25    $25.00   95%
+  [11/07] Sequestering Presence (Classic Foil)                  $0.25     $5.00   95%
+  [10/29] Sister Azura Silversong (Classic Foil)                $0.25     $5.00   95%
+  [10/04] Autumn, Essence Animated (Classic Paper)              $1.25    $25.00   95%
+  [10/29] Life Engine Heart (Classic Foil)                      $0.25     $5.00   95%
+  [11/02] Static Shock (Classic Foil)                           $0.25     $4.00   94%
+  [11/03] Isaac Sparkpaw (Classic Foil)                         $0.25     $3.87   94%
+  [11/02] Floki, Born in Fire (Classic Foil)                    $0.25     $3.75   93%
+
+================================================================================
+  SUMMARY
+================================================================================
+  - 53.3% of treatment-matched sales occurred below the current floor
+  - 37.0% sold at 20%+ below floor
+  - Highest below-floor rate: OCM Serialized (82.1%)
+  - Lowest below-floor rate: Sealed (10.0%)
+
+--------------------------------------------------------------------------------
+  Generated: 2025-12-09 00:36:52 UTC
+  Data Source: eBay sold listings via WondersTrader.com
+--------------------------------------------------------------------------------
