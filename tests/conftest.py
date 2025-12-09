@@ -28,10 +28,7 @@ def pytest_collection_modifyitems(config, items):
     """
     Auto-skip tests based on environment:
     - SaaS tests when saas/ module is not available
-    - Integration tests in CI (empty database)
     """
-    import os
-
     # Skip SaaS tests when module not available
     if not SAAS_AVAILABLE:
         skip_saas = pytest.mark.skip(reason="saas/ module not available (OSS mode)")
@@ -40,13 +37,6 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip_saas)
             elif "saas/tests" in str(item.fspath) or "saas\\tests" in str(item.fspath):
                 item.add_marker(skip_saas)
-
-    # Skip integration tests in CI (they need real data that doesn't exist in CI)
-    if os.environ.get("CI") == "true":
-        skip_integration = pytest.mark.skip(reason="Integration tests skipped in CI (no data)")
-        for item in items:
-            if "integration" in item.keywords:
-                item.add_marker(skip_integration)
 
 
 # Use in-memory SQLite for unit tests (fast, isolated)
