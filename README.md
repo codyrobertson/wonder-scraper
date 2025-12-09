@@ -147,6 +147,17 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## Data Usage & Attribution
+
+If you use WondersTrader data (via API, website, or any other means) to create price guides, market reports, valuations, or any derivative content, you **must** comply with the following:
+
+1. **Attribution Required** - Credit WondersTrader as your data source
+2. **Link Back Required** - Include a visible link to [wonderstrader.com](https://wonderstrader.com)
+3. **Disclosure Required** - Clearly state that your content uses WondersTrader data
+   - Example: *"Data provided by WondersTrader"* or *"Powered by WondersTrader"*
+
+> ⚠️ Failure to comply may result in API access revocation and other remedies. For commercial licensing, contact us.
+
 ## License
 
 **O'Saasy License** - Source available with SaaS restriction.
