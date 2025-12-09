@@ -16,12 +16,29 @@ from datetime import datetime, timedelta
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlmodel import Session, select
+from sqlmodel import Session, select, SQLModel
 from app.db import engine
 from app.models.card import Card, Rarity
 from app.models.market import MarketPrice, MarketSnapshot
 from app.models.user import User
 from app.core import security
+
+# Import all models to ensure they're registered with SQLModel.metadata
+from app.models import (  # noqa: F401
+    PortfolioItem, PortfolioCard, PurchaseSource,
+    PageView, CardMetaVote, CardMetaVoteReaction,
+)
+from app.models.api_key import APIKey  # noqa: F401
+from app.models.watchlist import Watchlist, EmailPreferences  # noqa: F401
+from app.models.webhook_event import WebhookEvent  # noqa: F401
+from app.models.blokpax import BlokpaxListing  # noqa: F401
+
+
+def create_tables():
+    """Create all tables if they don't exist."""
+    print("  - Creating tables...")
+    SQLModel.metadata.create_all(engine)
+    print("    Tables created successfully")
 
 
 def seed_rarities(session: Session) -> dict:
@@ -270,6 +287,9 @@ def seed_market_snapshots(session: Session, cards: list) -> list:
 def main():
     """Main seeding function."""
     print("Seeding test data for CI...")
+
+    # Create tables first (in case alembic migrations are missing)
+    create_tables()
 
     with Session(engine) as session:
         print("  - Seeding rarities...")
