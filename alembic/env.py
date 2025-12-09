@@ -35,7 +35,7 @@ from app.models import (  # noqa: E402, F401
     CardMetaVote, CardMetaVoteReaction,
 )
 from app.models.api_key import APIKey  # noqa: E402, F401
-from app.models.watchlist import WatchlistItem  # noqa: E402, F401
+from app.models.watchlist import Watchlist, EmailPreferences  # noqa: E402, F401
 from app.models.webhook_event import WebhookEvent  # noqa: E402, F401
 from app.models.blokpax import BlokpaxListing  # noqa: E402, F401
 
