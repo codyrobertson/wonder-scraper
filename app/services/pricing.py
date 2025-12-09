@@ -26,6 +26,7 @@ try:
         DEFAULT_RARITY_MULTIPLIERS,
         DEFAULT_TREATMENT_MULTIPLIERS,
     )
+
     FMP_AVAILABLE = True
 except ImportError:
     FMP_AVAILABLE = False
