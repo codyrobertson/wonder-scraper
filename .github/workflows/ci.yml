@@ -87,6 +87,11 @@ jobs:
           DATABASE_URL: postgresql://test:test@localhost:5432/wonder_test
         run: poetry run alembic upgrade head
 
+      - name: Seed test data
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/wonder_test
+        run: poetry run python scripts/seed_test_data.py
+
       - name: Run tests
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/wonder_test
