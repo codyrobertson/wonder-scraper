@@ -761,8 +761,7 @@ def read_card_pricing(
     """
     if not FMP_AVAILABLE:
         raise HTTPException(
-            status_code=403,
-            detail="FMP pricing is not available in OSS mode. This feature requires SaaS access."
+            status_code=403, detail="FMP pricing is not available in OSS mode. This feature requires SaaS access."
         )
 
     card = get_card_by_id_or_slug(session, card_id)
