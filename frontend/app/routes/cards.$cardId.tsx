@@ -138,7 +138,7 @@ function getTreatmentColor(treatment: string): string {
     if (t.includes('preslab') && t.includes('10')) return '#fcd34d'
 
     // Preslab TAG 9 (bright green)
-    if (t.includes('preslab') && t.includes('9')) return '#4ade80'
+    if (t.includes('preslab') && t.includes('9')) return '#7dd3a8'
 
     // Preslab TAG 8 (sky blue)
     if (t.includes('preslab') && t.includes('8')) return '#38bdf8'
@@ -154,7 +154,7 @@ function getTreatmentColor(treatment: string): string {
 
     // === SEALED PRODUCTS ===
     // Factory Sealed (green)
-    if (t.includes('factory') && t.includes('seal')) return '#4ade80'
+    if (t.includes('factory') && t.includes('seal')) return '#7dd3a8'
 
     // Sealed (emerald)
     if (t.includes('seal')) return '#34d399'
@@ -461,7 +461,7 @@ function CardDetail() {
           cell: ({ row }) => (
             <div className="text-right">
                 <span className={clsx("px-1.5 py-0.5 rounded text-[10px] uppercase font-bold border", 
-                    row.original.listing_type === 'sold' ? "border-green-800 bg-green-900/20 text-green-500" : "border-blue-800 bg-blue-900/20 text-blue-500")}>
+                    row.original.listing_type === 'sold' ? "border-brand-700 bg-brand-800/20 text-brand-400" : "border-blue-800 bg-blue-900/20 text-blue-500")}>
                     {row.original.listing_type || 'Sold'}
                 </span>
             </div>
@@ -756,7 +756,7 @@ function CardDetail() {
                         <div className="flex flex-wrap gap-8">
                             <div>
                                 <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">Floor Price</div>
-                                <div className="text-4xl font-mono font-bold text-emerald-500">
+                                <div className="text-4xl font-mono font-bold text-brand-300">
                                     ${card.floor_price ? card.floor_price.toFixed(2) : (card.lowest_ask && card.lowest_ask > 0) ? card.lowest_ask.toFixed(2) : (card.latest_price?.toFixed(2) || '---')}
                                 </div>
                             </div>
@@ -785,7 +785,7 @@ function CardDetail() {
                             {/* Highest Confirmed Sale */}
                             <div className="border-l border-border pl-8">
                                 <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">Highest Sale</div>
-                                <div className="text-4xl font-mono font-bold text-emerald-600">
+                                <div className="text-4xl font-mono font-bold text-brand-400">
                                     ${card.max_price ? card.max_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '---'}
                                 </div>
                             </div>
@@ -797,7 +797,7 @@ function CardDetail() {
                     {/* Stats Grid - Compact inline layout */}
                     <div className="flex flex-wrap items-center gap-6 mb-4 text-sm">
                         <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-brand-300"></div>
                             <span className="text-[10px] text-muted-foreground uppercase">Lowest Ask</span>
                             <span className="font-mono font-bold">{(card.lowest_ask && card.lowest_ask > 0) ? `$${card.lowest_ask.toFixed(2)}` : "---"}</span>
                         </div>
@@ -817,7 +817,7 @@ function CardDetail() {
                             {(chartStats?.priceChange ?? 0) === 0 ? (
                                 <span className="font-mono text-muted-foreground">-</span>
                             ) : (
-                                <span className={clsx("font-mono font-bold", (chartStats?.priceChange ?? 0) > 0 ? "text-emerald-500" : "text-red-500")}>
+                                <span className={clsx("font-mono font-bold", (chartStats?.priceChange ?? 0) > 0 ? "text-brand-300" : "text-red-500")}>
                                     {(chartStats?.priceChange ?? 0) > 0 ? '↑' : '↓'}{Math.abs(chartStats?.priceChange ?? 0).toFixed(1)}%
                                 </span>
                             )}
@@ -840,7 +840,7 @@ function CardDetail() {
                                                     <>
                                                         <span className="text-muted-foreground">{chartStats.totalSales} sales</span>
                                                         {chartStats.priceChange !== 0 && (
-                                                            <span className={chartStats.priceChange >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                                                            <span className={chartStats.priceChange >= 0 ? "text-brand-300" : "text-rose-400"}>
                                                                 {chartStats.priceChange >= 0 ? '+' : ''}{chartStats.priceChange.toFixed(1)}%
                                                             </span>
                                                         )}
@@ -899,7 +899,7 @@ function CardDetail() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-muted-foreground uppercase">High:</span>
-                                                <span className="font-mono text-emerald-400">${chartStats?.maxPrice?.toFixed(2) || "---"}</span>
+                                                <span className="font-mono text-brand-300">${chartStats?.maxPrice?.toFixed(2) || "---"}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-muted-foreground uppercase">Avg:</span>
@@ -944,7 +944,7 @@ function CardDetail() {
                                                 )
                                             )}
                                             <div className="flex items-center gap-1">
-                                                <div className="w-2 h-2 bg-emerald-400" style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}></div>
+                                                <div className="w-2 h-2 bg-brand-300" style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}></div>
                                                 <span className="text-muted-foreground">Active</span>
                                             </div>
                                         </div>
@@ -990,10 +990,10 @@ function CardDetail() {
                                                         {card.floor_price && card.floor_price > 0 && (
                                                             <ReferenceLine
                                                                 y={card.floor_price}
-                                                                stroke="#10b981"
+                                                                stroke="#7dd3a8"
                                                                 strokeDasharray="3 3"
                                                                 strokeWidth={1.5}
-                                                                label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: `#10b981`, fontSize: 9, position: `insideTopLeft` }}
+                                                                label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: `#7dd3a8`, fontSize: 9, position: `insideTopLeft` }}
                                                             />
                                                         )}
                                                         <RechartsTooltip
@@ -1003,7 +1003,7 @@ function CardDetail() {
                                                                     const data = payload[0].payload as any
                                                                     return (
                                                                         <div className="bg-black/90 border border-border rounded p-3 shadow-lg">
-                                                                            <div className="text-emerald-400 font-bold font-mono text-lg">${data.price.toFixed(2)}</div>
+                                                                            <div className="text-brand-300 font-bold font-mono text-lg">${data.price.toFixed(2)}</div>
                                                                             <div className="text-muted-foreground text-xs mt-1">
                                                                                 {data.date}
                                                                             </div>
@@ -1055,7 +1055,7 @@ function CardDetail() {
                                                                         cx={cx}
                                                                         cy={cy}
                                                                         r={6}
-                                                                        fill={payload.treatmentColor || '#10b981'}
+                                                                        fill={payload.treatmentColor || '#7dd3a8'}
                                                                         stroke="#0a0a0a"
                                                                         strokeWidth={2}
                                                                         style={{ filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.5))' }}
@@ -1069,8 +1069,8 @@ function CardDetail() {
                                                     (<AreaChart data={chartData} margin={{ top: 20, right: 60, bottom: 30, left: 20 }}>
                                                         <defs>
                                                             <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
-                                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                                                <stop offset="5%" stopColor="#7dd3a8" stopOpacity={0.15}/>
+                                                                <stop offset="95%" stopColor="#7dd3a8" stopOpacity={0}/>
                                                             </linearGradient>
                                                         </defs>
                                                         <CartesianGrid strokeDasharray="3 3" stroke="#333" strokeOpacity={0.3} vertical={false} horizontal={true} />
@@ -1105,10 +1105,10 @@ function CardDetail() {
                                                         {card.floor_price && card.floor_price > 0 && (
                                                             <ReferenceLine
                                                                 y={card.floor_price}
-                                                                stroke="#10b981"
+                                                                stroke="#7dd3a8"
                                                                 strokeDasharray="3 3"
                                                                 strokeWidth={1.5}
-                                                                label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: `#10b981`, fontSize: 9, position: `insideTopLeft` }}
+                                                                label={{ value: `Floor $${card.floor_price.toFixed(2)}`, fill: `#7dd3a8`, fontSize: 9, position: `insideTopLeft` }}
                                                             />
                                                         )}
                                                         <RechartsTooltip
@@ -1118,7 +1118,7 @@ function CardDetail() {
                                                                     const data = payload[0].payload as any
                                                                     return (
                                                                         <div className="bg-black/90 border border-border rounded p-3 shadow-lg">
-                                                                            <div className="text-emerald-400 font-bold font-mono text-lg">${data.price.toFixed(2)}</div>
+                                                                            <div className="text-brand-300 font-bold font-mono text-lg">${data.price.toFixed(2)}</div>
                                                                             <div className="text-muted-foreground text-xs mt-1">
                                                                                 {data.date}
                                                                             </div>
@@ -1147,7 +1147,7 @@ function CardDetail() {
                                                         <Area
                                                             type="monotone"
                                                             dataKey="price"
-                                                            stroke="#10b981"
+                                                            stroke="#7dd3a8"
                                                             strokeWidth={2}
                                                             fill="url(#priceGradient)"
                                                             dot={false}
@@ -1179,7 +1179,7 @@ function CardDetail() {
                                                                         cx={cx}
                                                                         cy={cy}
                                                                         r={8}
-                                                                        fill={payload.treatmentColor || '#10b981'}
+                                                                        fill={payload.treatmentColor || '#7dd3a8'}
                                                                         stroke="#fff"
                                                                         strokeWidth={3}
                                                                         style={{ filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.3))' }}
@@ -1389,19 +1389,19 @@ function CardDetail() {
                             </h3>
                             <p className="text-sm text-zinc-400">
                                 Get instant market data, price alerts, and portfolio analytics for Wonders of the First TCG at{' '}
-                                <span className="text-emerald-500 font-bold">WondersTracker.com</span>
+                                <span className="text-brand-300 font-bold">WondersTracker.com</span>
                             </p>
                         </div>
                         <div className="flex gap-3">
                             <Link
                                 to="/"
-                                className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-black font-bold uppercase text-sm rounded transition-colors"
+                                className="px-6 py-3 bg-brand-300 hover:bg-brand-400 text-black font-bold uppercase text-sm rounded transition-colors"
                             >
                                 View Market
                             </Link>
                             <Link
                                 to="/portfolio"
-                                className="px-6 py-3 border border-emerald-500 text-emerald-500 hover:bg-emerald-500/10 font-bold uppercase text-sm rounded transition-colors"
+                                className="px-6 py-3 border border-brand-300 text-brand-300 hover:bg-brand-300/10 font-bold uppercase text-sm rounded transition-colors"
                             >
                                 Track Portfolio
                             </Link>
@@ -1479,7 +1479,7 @@ function CardDetail() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <div className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest mb-1">Price</div>
-                                    <div className="text-2xl font-mono font-bold text-emerald-500">
+                                    <div className="text-2xl font-mono font-bold text-brand-300">
                                         ${selectedListing.price.toFixed(2)}
                                     </div>
                                 </div>
@@ -1503,7 +1503,7 @@ function CardDetail() {
                                 <div>
                                     <div className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest mb-1">Type</div>
                                     <span className={clsx("px-2 py-1 rounded text-[10px] uppercase font-bold border inline-block", 
-                                        selectedListing.listing_type === 'sold' ? 'border-green-800 bg-green-900/20 text-green-500' : 'border-blue-800 bg-blue-900/20 text-blue-500')}>
+                                        selectedListing.listing_type === 'sold' ? 'border-brand-700 bg-brand-800/20 text-brand-400' : 'border-blue-800 bg-blue-900/20 text-blue-500')}>
                                         {selectedListing.listing_type || 'Sold'}
                                     </span>
                                 </div>
@@ -1679,7 +1679,7 @@ function CardDetail() {
                                     {selectedListing.seller_feedback_percent != null && (
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Positive Feedback</span>
-                                            <span className={clsx("font-bold", selectedListing.seller_feedback_percent >= 99 ? "text-emerald-500" : selectedListing.seller_feedback_percent >= 95 ? "text-yellow-500" : "text-red-500")}>{selectedListing.seller_feedback_percent}%</span>
+                                            <span className={clsx("font-bold", selectedListing.seller_feedback_percent >= 99 ? "text-brand-300" : selectedListing.seller_feedback_percent >= 95 ? "text-yellow-500" : "text-red-500")}>{selectedListing.seller_feedback_percent}%</span>
                                         </div>
                                     )}
                                     {selectedListing.condition && (
@@ -1691,7 +1691,7 @@ function CardDetail() {
                                     {selectedListing.shipping_cost != null && (
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Shipping</span>
-                                            <span className={clsx("font-bold", selectedListing.shipping_cost === 0 ? "text-emerald-500" : "")}>{selectedListing.shipping_cost === 0 ? "Free" : "$${selectedListing.shipping_cost.toFixed(2)}"}</span>
+                                            <span className={clsx("font-bold", selectedListing.shipping_cost === 0 ? "text-brand-300" : "")}>{selectedListing.shipping_cost === 0 ? "Free" : "$${selectedListing.shipping_cost.toFixed(2)}"}</span>
                                         </div>
                                     )}
                                 </div>
@@ -1838,8 +1838,8 @@ function CardDetail() {
                             <div className="p-6 space-y-6">
                                 {reportSubmitted ? (
                                     <div className="text-center py-8">
-                                        <div className="w-16 h-16 rounded-full bg-emerald-900/30 border border-emerald-700 flex items-center justify-center mx-auto mb-4">
-                                            <svg className="w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <div className="w-16 h-16 rounded-full bg-brand-800/30 border border-brand-600 flex items-center justify-center mx-auto mb-4">
+                                            <svg className="w-8 h-8 text-brand-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                             </svg>
                                         </div>
@@ -1860,7 +1860,7 @@ function CardDetail() {
                                         <div className="bg-muted/20 rounded p-3 border border-border">
                                             <div className="text-[10px] uppercase text-muted-foreground mb-1">Reporting:</div>
                                             <div className="text-sm font-medium truncate">{selectedListing.title}</div>
-                                            <div className="text-xs text-emerald-500 font-mono mt-1">${selectedListing.price.toFixed(2)}</div>
+                                            <div className="text-xs text-brand-300 font-mono mt-1">${selectedListing.price.toFixed(2)}</div>
                                         </div>
 
                                         {/* Reason Selection */}
@@ -1948,7 +1948,7 @@ function CardDetail() {
                                                     }
                                                 }}
                                                 disabled={!reportReason || reportSubmitting}
-                                                className="flex-1 px-4 py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-amber-600/50 disabled:cursor-not-allowed text-white rounded text-sm font-bold uppercase transition-colors flex items-center justify-center gap-2"
+                                                className="flex-1 px-4 py-3 bg-brand-400 hover:bg-brand-300 disabled:bg-brand-400/50 disabled:cursor-not-allowed text-gray-900 rounded text-sm font-bold uppercase transition-colors flex items-center justify-center gap-2"
                                             >
                                                 {reportSubmitting ? (
                                                     <>

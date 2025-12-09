@@ -56,6 +56,15 @@
   body {
     @apply bg-background text-foreground font-mono;
   }
+
+  /* Brand color checkboxes */
+  input[type="checkbox"] {
+    accent-color: #7dd3a8;
+  }
+  input[type="checkbox"]:checked {
+    background-color: #7dd3a8;
+    border-color: #7dd3a8;
+  }
 }
 
 @layer utilities {

@@ -99,9 +99,9 @@ const TREATMENT_STYLES: Record<string, { bg: string; border: string; text: strin
     gradient: 'linear-gradient(90deg, rgba(76,29,149,0.15) 0%, rgba(139,92,246,0.25) 25%, rgba(196,181,253,0.3) 50%, rgba(139,92,246,0.25) 75%, rgba(76,29,149,0.15) 100%)',
   },
   'Full Art Foil': {
-    bg: 'bg-gradient-to-r from-emerald-950 via-teal-800 to-emerald-950',
-    border: 'border-emerald-400/40',
-    text: 'text-emerald-300',
+    bg: 'bg-gradient-to-r from-brand-900 via-teal-800 to-brand-900',
+    border: 'border-brand-300/40',
+    text: 'text-brand-200',
     gradient: 'linear-gradient(90deg, rgba(6,78,59,0.15) 0%, rgba(20,184,166,0.25) 25%, rgba(94,234,212,0.3) 50%, rgba(20,184,166,0.25) 75%, rgba(6,78,59,0.15) 100%)',
   },
   'Animated': {
@@ -119,9 +119,9 @@ const TREATMENT_STYLES: Record<string, { bg: string; border: string; text: strin
     gradient: 'linear-gradient(90deg, rgba(180,83,9,0.15) 0%, rgba(253,224,71,0.3) 25%, rgba(254,240,138,0.35) 50%, rgba(253,224,71,0.3) 75%, rgba(180,83,9,0.15) 100%)',
   },
   'Preslab TAG 9': {
-    bg: 'bg-green-950/80',
-    border: 'border-green-500/50',
-    text: 'text-green-300',
+    bg: 'bg-brand-900/80',
+    border: 'border-brand-400/50',
+    text: 'text-brand-200',
   },
   'Preslab TAG 8': {
     bg: 'bg-sky-950/80',
@@ -175,14 +175,14 @@ const TREATMENT_STYLES: Record<string, { bg: string; border: string; text: strin
 
   // === SEALED PRODUCTS ===
   'Factory Sealed': {
-    bg: 'bg-green-950/80',
-    border: 'border-green-500/50',
-    text: 'text-green-300',
+    bg: 'bg-brand-900/80',
+    border: 'border-brand-400/50',
+    text: 'text-brand-200',
   },
   'Sealed': {
-    bg: 'bg-emerald-950/70',
-    border: 'border-emerald-600/50',
-    text: 'text-emerald-400',
+    bg: 'bg-brand-900/70',
+    border: 'border-brand-400/50',
+    text: 'text-brand-300',
   },
   'New': {
     bg: 'bg-teal-950/70',
@@ -234,9 +234,9 @@ const TREATMENT_STYLES: Record<string, { bg: string; border: string; text: strin
     text: 'text-gray-400',
   },
   'All Sealed': {
-    bg: 'bg-emerald-950/60',
-    border: 'border-emerald-600/40',
-    text: 'text-emerald-400',
+    bg: 'bg-brand-900/60',
+    border: 'border-brand-400/40',
+    text: 'text-brand-300',
   },
   'All Raw': {
     bg: 'bg-zinc-800/60',
