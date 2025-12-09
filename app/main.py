@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.api import auth, cards, portfolio, users, market, admin, blokpax, analytics, meta, billing, webhooks, watchlist
 from app.api.billing import BILLING_AVAILABLE
 from app.middleware.metering import APIMeteringMiddleware, METERING_AVAILABLE
+from app.core.saas import get_mode_info, SAAS_ENABLED
 from contextlib import asynccontextmanager
 from app.core.scheduler import start_scheduler
 from app.core.anti_scraping import AntiScrapingMiddleware
@@ -88,3 +89,20 @@ app.include_router(watchlist.router, prefix=f"{settings.API_V1_STR}/watchlist", 
 @app.get("/")
 def root():
     return {"message": "Welcome to Wonder Scraper API"}
+
+
+@app.get("/health")
+def health():
+    """Basic health check endpoint."""
+    return {"status": "healthy"}
+
+
+@app.get("/health/mode")
+def health_mode():
+    """
+    Get detailed information about the application mode.
+
+    Useful for verifying deployment configuration.
+    Returns whether running in SaaS or OSS mode and feature availability.
+    """
+    return get_mode_info()
