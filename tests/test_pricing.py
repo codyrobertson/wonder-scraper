@@ -23,8 +23,7 @@ from app.services.pricing import (
 
 # Skip FMP integration tests when saas module is not available
 requires_fmp = pytest.mark.skipif(
-    not FMP_AVAILABLE,
-    reason="FMP pricing requires saas module (not available in OSS mode)"
+    not FMP_AVAILABLE, reason="FMP pricing requires saas module (not available in OSS mode)"
 )
 
 
@@ -69,13 +68,15 @@ class TestFloorPriceIntegration:
         from sqlmodel import text
 
         # Find a card that has Classic Paper sales
-        result = integration_session.execute(text("""
+        result = integration_session.execute(
+            text("""
             SELECT DISTINCT card_id FROM marketprice
             WHERE treatment IN ('Classic Paper', 'Classic Foil')
             AND listing_type = 'sold'
             AND COALESCE(sold_date, scraped_at) >= NOW() - INTERVAL '30 days'
             LIMIT 1
-        """)).fetchone()
+        """)
+        ).fetchone()
 
         if not result:
             pytest.skip("No cards with Classic Paper/Foil sales in last 30 days")
@@ -95,7 +96,8 @@ class TestFloorPriceIntegration:
         from sqlmodel import text
 
         # Find a card that has NO Classic Paper/Foil but has other treatments
-        result = integration_session.execute(text("""
+        result = integration_session.execute(
+            text("""
             SELECT mp.card_id
             FROM marketprice mp
             WHERE mp.listing_type = 'sold'
@@ -104,7 +106,8 @@ class TestFloorPriceIntegration:
             HAVING COUNT(*) FILTER (WHERE mp.treatment IN ('Classic Paper', 'Classic Foil')) = 0
             AND COUNT(*) > 0
             LIMIT 1
-        """)).fetchone()
+        """)
+        ).fetchone()
 
         if not result:
             pytest.skip("No cards without Classic Paper/Foil sales found")
@@ -117,7 +120,8 @@ class TestFloorPriceIntegration:
         assert floor > 0
 
         # Verify it's using the cheapest treatment
-        treatments = integration_session.execute(text("""
+        treatments = integration_session.execute(
+            text("""
             SELECT treatment, AVG(price) as avg_price
             FROM (
                 SELECT treatment, price,
@@ -130,7 +134,9 @@ class TestFloorPriceIntegration:
             WHERE rn <= 4
             GROUP BY treatment
             ORDER BY avg_price ASC
-        """), {"card_id": card_id}).fetchall()
+        """),
+            {"card_id": card_id},
+        ).fetchall()
 
         if treatments:
             cheapest_avg = float(treatments[0][1])
@@ -144,7 +150,8 @@ class TestFloorPriceIntegration:
         from sqlmodel import text
 
         # Find a card with sales only in the 31-90 day window
-        result = integration_session.execute(text("""
+        result = integration_session.execute(
+            text("""
             SELECT card_id FROM marketprice
             WHERE listing_type = 'sold'
             AND COALESCE(sold_date, scraped_at) >= NOW() - INTERVAL '90 days'
@@ -152,7 +159,8 @@ class TestFloorPriceIntegration:
             GROUP BY card_id
             HAVING COUNT(*) >= 4
             LIMIT 1
-        """)).fetchone()
+        """)
+        ).fetchone()
 
         if not result:
             pytest.skip("No cards with only 31-90 day old sales found")
@@ -179,14 +187,16 @@ class TestFloorPriceIntegration:
         from sqlmodel import text
 
         # Find a card with both active and sold listings
-        result = integration_session.execute(text("""
+        result = integration_session.execute(
+            text("""
             SELECT card_id FROM marketprice
             WHERE listing_type = 'active'
             AND card_id IN (
                 SELECT card_id FROM marketprice WHERE listing_type = 'sold'
             )
             LIMIT 1
-        """)).fetchone()
+        """)
+        ).fetchone()
 
         if not result:
             pytest.skip("No cards with both active and sold listings")
@@ -194,10 +204,13 @@ class TestFloorPriceIntegration:
         card_id = result[0]
 
         # Get the lowest active listing price
-        active_min = integration_session.execute(text("""
+        active_min = integration_session.execute(
+            text("""
             SELECT MIN(price) FROM marketprice
             WHERE card_id = :card_id AND listing_type = 'active'
-        """), {"card_id": card_id}).scalar()
+        """),
+            {"card_id": card_id},
+        ).scalar()
 
         floor = pricing_service.calculate_floor_price(card_id)
 
@@ -222,14 +235,16 @@ class TestFMPCalculation:
         from sqlmodel import text
 
         # Find a Single card with sales
-        result = integration_session.execute(text("""
+        result = integration_session.execute(
+            text("""
             SELECT c.id, c.set_name, r.name as rarity_name
             FROM card c
             JOIN rarity r ON c.rarity_id = r.id
             WHERE c.product_type = 'Single'
             AND c.id IN (SELECT card_id FROM marketprice WHERE listing_type = 'sold')
             LIMIT 1
-        """)).fetchone()
+        """)
+        ).fetchone()
 
         if not result:
             pytest.skip("No Single cards with sales found")
@@ -237,10 +252,7 @@ class TestFMPCalculation:
         card_id, set_name, rarity_name = result
 
         fmp_result = pricing_service.calculate_fmp(
-            card_id=card_id,
-            set_name=set_name,
-            rarity_name=rarity_name,
-            product_type="Single"
+            card_id=card_id, set_name=set_name, rarity_name=rarity_name, product_type="Single"
         )
 
         assert "fair_market_price" in fmp_result
@@ -266,14 +278,16 @@ class TestFMPCalculation:
         from sqlmodel import text
 
         # Find a Box/Pack with sales
-        result = integration_session.execute(text("""
+        result = integration_session.execute(
+            text("""
             SELECT c.id, c.set_name, r.name as rarity_name, c.product_type
             FROM card c
             JOIN rarity r ON c.rarity_id = r.id
             WHERE c.product_type IN ('Box', 'Pack', 'Bundle')
             AND c.id IN (SELECT card_id FROM marketprice WHERE listing_type = 'sold')
             LIMIT 1
-        """)).fetchone()
+        """)
+        ).fetchone()
 
         if not result:
             pytest.skip("No Box/Pack/Bundle products with sales found")
@@ -281,10 +295,7 @@ class TestFMPCalculation:
         card_id, set_name, rarity_name, product_type = result
 
         fmp_result = pricing_service.calculate_fmp(
-            card_id=card_id,
-            set_name=set_name,
-            rarity_name=rarity_name,
-            product_type=product_type
+            card_id=card_id, set_name=set_name, rarity_name=rarity_name, product_type=product_type
         )
 
         # For non-Singles, should use median method
@@ -314,20 +325,24 @@ class TestCoalesceHandling:
         from sqlmodel import text
 
         # Check if there are any NULL sold_date records
-        null_count = integration_session.execute(text("""
+        null_count = integration_session.execute(
+            text("""
             SELECT COUNT(*) FROM marketprice
             WHERE listing_type = 'sold' AND sold_date IS NULL
-        """)).scalar()
+        """)
+        ).scalar()
 
         if null_count == 0:
             pytest.skip("No sales with NULL sold_date in database")
 
         # Find a card with NULL sold_date sales
-        result = integration_session.execute(text("""
+        result = integration_session.execute(
+            text("""
             SELECT card_id FROM marketprice
             WHERE listing_type = 'sold' AND sold_date IS NULL
             LIMIT 1
-        """)).fetchone()
+        """)
+        ).fetchone()
 
         card_id = result[0]
         floor = pricing_service.calculate_floor_price(card_id, days=365)  # Wide window
@@ -354,13 +369,15 @@ class TestSpecificCards:
         from sqlmodel import text
 
         # Check if PROGO exists and has the expected treatment distribution
-        progo_check = integration_session.execute(text("""
+        progo_check = integration_session.execute(
+            text("""
             SELECT treatment, COUNT(*) as cnt
             FROM marketprice
             WHERE card_id = 362 AND listing_type = 'sold'
             GROUP BY treatment
             ORDER BY cnt DESC
-        """)).fetchall()
+        """)
+        ).fetchall()
 
         if not progo_check:
             pytest.skip("PROGO (card 362) not found or has no sales")
@@ -383,7 +400,8 @@ class TestSpecificCards:
         assert floor is not None, "PROGO should have a floor price (from Formless Foil fallback)"
 
         # Get expected floor from Formless Foil
-        formless_floor = integration_session.execute(text("""
+        formless_floor = integration_session.execute(
+            text("""
             SELECT AVG(price) FROM (
                 SELECT price FROM marketprice
                 WHERE card_id = 362
@@ -393,12 +411,14 @@ class TestSpecificCards:
                 ORDER BY price ASC
                 LIMIT 4
             ) as lowest
-        """)).scalar()
+        """)
+        ).scalar()
 
         if formless_floor:
             # Floor should be based on Formless Foil (cheapest available treatment)
-            assert abs(floor - float(formless_floor)) < 1.0, \
-                f"PROGO floor {floor} should be close to Formless Foil avg {formless_floor}"
+            assert (
+                abs(floor - float(formless_floor)) < 1.0
+            ), f"PROGO floor {floor} should be close to Formless Foil avg {formless_floor}"
 
     def test_progo_floor_not_active_listing(self, pricing_service, integration_session):
         """
@@ -407,14 +427,17 @@ class TestSpecificCards:
         from sqlmodel import text
 
         # Check if PROGO has a $0.99 active listing
-        active_check = integration_session.execute(text("""
+        active_check = integration_session.execute(
+            text("""
             SELECT price FROM marketprice
             WHERE card_id = 362 AND listing_type = 'active'
             ORDER BY price ASC LIMIT 1
-        """)).fetchone()
+        """)
+        ).fetchone()
 
         floor = pricing_service.calculate_floor_price(362)
 
         if floor and active_check and active_check[0] < 1.0:
-            assert floor != active_check[0], \
-                f"PROGO floor {floor} should not equal low active listing {active_check[0]}"
+            assert (
+                floor != active_check[0]
+            ), f"PROGO floor {floor} should not equal low active listing {active_check[0]}"
