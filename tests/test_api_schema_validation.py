@@ -12,6 +12,9 @@ from pydantic import BaseModel
 
 from app.main import app
 
+# Mark all tests in this module as integration tests (client uses real database)
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def client():

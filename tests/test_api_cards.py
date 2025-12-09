@@ -13,6 +13,9 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
+# Mark all tests in this module as integration tests (require real database with data)
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def client():

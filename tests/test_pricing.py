@@ -47,6 +47,7 @@ class TestFloorPriceCalculation:
         assert DEFAULT_TREATMENT_MULTIPLIERS["OCM Serialized"] > DEFAULT_TREATMENT_MULTIPLIERS["Formless Foil"]
 
 
+@pytest.mark.integration
 class TestFloorPriceIntegration:
     """Integration tests for floor price calculation using real database."""
 
@@ -200,6 +201,7 @@ class TestFloorPriceIntegration:
             assert floor != active_min, "Floor should not equal suspicious active listing price"
 
 
+@pytest.mark.integration
 class TestFMPCalculation:
     """Tests for Fair Market Price formula calculation."""
 
@@ -286,6 +288,7 @@ class TestFMPCalculation:
             assert 0.85 <= adj <= 1.0, f"Liquidity adjustment {adj} out of bounds for card {card_id}"
 
 
+@pytest.mark.integration
 class TestCoalesceHandling:
     """Tests for COALESCE(sold_date, scraped_at) handling."""
 
@@ -321,6 +324,7 @@ class TestCoalesceHandling:
         assert floor is not None
 
 
+@pytest.mark.integration
 class TestSpecificCards:
     """Tests for specific known cards (regression tests)."""
 
