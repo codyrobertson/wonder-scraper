@@ -12,22 +12,151 @@ from app.scraper.blocklist import load_blocklist, get_blocklist_version
 
 STOPWORDS = {"the", "of", "a", "an", "in", "on", "at", "for", "to", "with", "by", "and", "or", "wonders", "first", "existence"}
 
+
+def score_sealed_match(title: str, card_name: str, product_type: str) -> int:
+    """
+    Score how well a listing title matches a sealed product card.
+
+    Higher score = better match. Used to determine which card a listing
+    should be assigned to when it could match multiple sealed products.
+
+    Scoring:
+    - Exact card name in title: +100
+    - Key phrase matches: +20-50 each
+    - Product type alignment: +15
+    - Specificity bonuses: +15-25
+    - Generic card penalties: -10 to -30
+
+    Returns: integer score (higher = better match)
+    """
+    if product_type == "Single":
+        return 0  # Not applicable to singles
+
+    title_lower = title.lower()
+    card_lower = card_name.lower()
+    score = 0
+
+    # 1. Exact card name match (strongest signal)
+    if card_lower in title_lower:
+        score += 100
+
+    # 2. Key phrase matching
+    # Collector Booster Box specific
+    if "collector booster box" in card_lower:
+        if "collector" in title_lower and "booster" in title_lower and "box" in title_lower:
+            score += 50
+        if "collector booster box" in title_lower:
+            score += 30
+        # Penalty if it's actually a bundle/blaster
+        if "bundle" in title_lower or "blaster" in title_lower:
+            score -= 30
+
+    # Play Booster Pack specific
+    if "play booster pack" in card_lower:
+        if "play" in title_lower and "pack" in title_lower:
+            score += 40
+        # Penalty for bundles when searching for packs
+        if "bundle" in title_lower or "blaster box" in title_lower:
+            score -= 30
+
+    # Play Bundle / Blaster Box specific
+    if "play booster bundle" in card_lower or "bundle" in card_lower:
+        if "play bundle" in title_lower or "blaster box" in title_lower:
+            score += 50
+        if "bundle" in title_lower:
+            score += 20
+        # Penalty if it's a box (not bundle)
+        if "collector booster box" in title_lower:
+            score -= 20
+
+    # Collector Booster Pack specific
+    if "collector booster pack" in card_lower:
+        if "collector" in title_lower and "pack" in title_lower:
+            score += 40
+        # Penalty for boxes when searching for packs
+        if "box" in title_lower and "blaster" not in title_lower:
+            score -= 30
+
+    # 3. Product type alignment
+    if product_type == "Box":
+        if "box" in title_lower and "blaster" not in title_lower:
+            score += 15
+        if "case" in title_lower:
+            score += 10
+    elif product_type == "Pack":
+        if "pack" in title_lower and "box" not in title_lower:
+            score += 15
+    elif product_type == "Bundle":
+        if "bundle" in title_lower or "blaster" in title_lower:
+            score += 15
+    elif product_type == "Lot":
+        if "lot" in title_lower or "bulk" in title_lower:
+            score += 15
+
+    # 4. Specificity bonuses
+    # More specific cards get bonuses when listing matches
+    if "collector" in card_lower and "collector" in title_lower:
+        score += 15
+    if "play" in card_lower and "play" in title_lower:
+        score += 15
+    if "serialized advantage" in card_lower and "serialized advantage" in title_lower:
+        score += 25
+    if "starter" in card_lower and "starter" in title_lower:
+        score += 25
+
+    # 5. Generic card penalties
+    # Generic cards (like "Existence Booster Box") should lose to specific ones
+    generic_names = [
+        "existence booster box",
+        "existence booster pack",
+        "existence sealed pack",
+        "wonders of the first booster",
+        "booster box",
+        "booster pack"
+    ]
+    for generic in generic_names:
+        if generic in card_lower:
+            # This card is generic - lower its score
+            score -= 10
+            break
+
+    # 6. Keyword presence bonus (tie-breaker)
+    # Give small bonus when card name keywords appear in title
+    card_words = set(card_lower.split()) - {"of", "the", "a", "wonders", "first", "existence"}
+    title_words = set(title_lower.split())
+    matching_words = card_words & title_words
+    score += len(matching_words) * 2
+
+    return score
+
+
 def _bulk_check_indexed(
     card_id: int,
     listings_data: List[dict],
-    check_global: bool = True
+    check_global: bool = True,
+    card_name: str = "",
+    product_type: str = "Single"
 ) -> set:
     """
     Bulk check if listings already exist in database (avoids N+1 query problem).
 
+    For sealed products, uses smart matching to assign listings to the best-matching card.
+    If a listing exists for a different card but the current card is a better match,
+    it updates the existing record's card_id.
+
     Args:
         card_id: Card ID to check against
         listings_data: List of dicts with keys: external_id, title, price, sold_date
-        check_global: If True, also check if external_id exists for ANY card (prevents duplicate key errors)
+        check_global: If True, also check if external_id exists for ANY card
+        card_name: Name of the card we're searching for (for smart matching)
+        product_type: Type of product (Single, Box, Pack, Bundle, Lot)
 
     Returns:
-        Set of indices of listings that are already indexed
+        Set of indices of listings that are already indexed (should be skipped)
     """
+    from app.models.card import Card
+    from sqlalchemy import text
+
     if not listings_data:
         return set()
 
@@ -43,22 +172,62 @@ def _bulk_check_indexed(
 
         if external_ids:
             if check_global:
-                # Check if external_id exists for ANY card (prevents unique constraint violations
-                # when sealed products have overlapping search queries)
+                # Check if external_id exists for ANY card
                 all_existing = session.exec(
-                    select(MarketPrice.external_id, MarketPrice.card_id)
+                    select(MarketPrice.external_id, MarketPrice.card_id, MarketPrice.id)
                     .where(MarketPrice.external_id.in_(external_ids))
                 ).all()
 
-                # Build sets: existing for this card (skip) and existing for other cards (also skip to prevent conflicts)
-                existing_for_this_card = {ext_id for ext_id, cid in all_existing if cid == card_id}
-                existing_for_other_cards = {ext_id for ext_id, cid in all_existing if cid != card_id}
+                # Build maps for existing records
+                existing_for_this_card = {ext_id for ext_id, cid, mid in all_existing if cid == card_id}
+                existing_other_cards = {ext_id: (cid, mid) for ext_id, cid, mid in all_existing if cid != card_id}
 
-                # Mark indices where external_id exists for this card OR another card
+                # For sealed products, use smart matching to determine best card assignment
+                is_sealed = product_type in ("Box", "Pack", "Bundle", "Lot")
+
                 for i, listing in enumerate(listings_data):
                     ext_id = listing.get("external_id")
-                    if ext_id and (ext_id in existing_for_this_card or ext_id in existing_for_other_cards):
+                    if not ext_id:
+                        continue
+
+                    if ext_id in existing_for_this_card:
+                        # Already indexed for this exact card - skip
                         indexed_indices.add(i)
+                    elif ext_id in existing_other_cards:
+                        # Exists for a different card
+                        if is_sealed and card_name:
+                            # Smart matching: compare scores to find best card
+                            other_card_id, market_price_id = existing_other_cards[ext_id]
+                            title = listing.get("title", "")
+
+                            # Get the other card's details
+                            other_card = session.exec(
+                                select(Card).where(Card.id == other_card_id)
+                            ).first()
+
+                            if other_card:
+                                # Score current card vs the existing card
+                                current_score = score_sealed_match(title, card_name, product_type)
+                                other_score = score_sealed_match(title, other_card.name, other_card.product_type)
+
+                                if current_score > other_score:
+                                    # Current card is a better match - update the existing record
+                                    session.execute(
+                                        text("UPDATE marketprice SET card_id = :card_id WHERE id = :id"),
+                                        {"card_id": card_id, "id": market_price_id}
+                                    )
+                                    session.commit()
+                                    # Mark as indexed since we just updated it
+                                    indexed_indices.add(i)
+                                else:
+                                    # Other card is equal or better match - skip
+                                    indexed_indices.add(i)
+                            else:
+                                # Other card not found (shouldn't happen) - skip to avoid errors
+                                indexed_indices.add(i)
+                        else:
+                            # Not sealed or no card_name - just skip to avoid duplicates
+                            indexed_indices.add(i)
             else:
                 # Original behavior: only check this card_id
                 existing_ids = session.exec(
@@ -174,6 +343,21 @@ def parse_total_results(html_content: str) -> int:
             return int(match.group(1).replace(',', ''))
     return 0
 
+def _is_alt_art(title: str) -> bool:
+    """Check if title indicates an Alt Art variant."""
+    title_lower = title.lower()
+
+    # Explicit alt art mentions
+    if "alt art" in title_lower or "alternate art" in title_lower:
+        return True
+
+    # A1-A8 numbering pattern (e.g., "#A2-361/401", "A5-361/401")
+    if re.search(r'[#\s]a[1-8]-\d+/\d+', title_lower):
+        return True
+
+    return False
+
+
 def _detect_treatment(title: str, product_type: str = "Single") -> str:
     """
     Detects treatment based on title keywords.
@@ -194,33 +378,45 @@ def _detect_treatment(title: str, product_type: str = "Single") -> str:
         # Default - assume sealed if no indicators (most eBay listings are sealed)
         return "Sealed"
 
+    # Check for Alt Art first (will be appended to base treatment)
+    is_alt_art = _is_alt_art(title)
+
     # Handle singles (cards)
+    base_treatment = None
+
     # 1. Serialized / OCM (Highest Priority)
     if "serialized" in title_lower or "/10" in title_lower or "/25" in title_lower or "/50" in title_lower or "/75" in title_lower or "/99" in title_lower or "ocm" in title_lower:
-        return "OCM Serialized"
+        base_treatment = "OCM Serialized"
 
     # 2. Special Foils
-    if "stonefoil" in title_lower or "stone foil" in title_lower:
-        return "Stonefoil"
-    if "formless" in title_lower:
-        return "Formless Foil"
+    elif "stonefoil" in title_lower or "stone foil" in title_lower:
+        base_treatment = "Stonefoil"
+    elif "formless" in title_lower:
+        base_treatment = "Formless Foil"
 
     # 3. Other Variants
-    if "prerelease" in title_lower:
-        return "Prerelease"
-    if "promo" in title_lower:
-        return "Promo"
-    if "proof" in title_lower or "sample" in title_lower:
-        return "Proof/Sample"
-    if "errata" in title_lower or "error" in title_lower:
-        return "Error/Errata"
+    elif "prerelease" in title_lower:
+        base_treatment = "Prerelease"
+    elif "promo" in title_lower:
+        base_treatment = "Promo"
+    elif "proof" in title_lower or "sample" in title_lower:
+        base_treatment = "Proof/Sample"
+    elif "errata" in title_lower or "error" in title_lower:
+        base_treatment = "Error/Errata"
 
     # 4. Classic Foil
-    if "foil" in title_lower or "holo" in title_lower or "refractor" in title_lower:
-        return "Classic Foil"
+    elif "foil" in title_lower or "holo" in title_lower or "refractor" in title_lower:
+        base_treatment = "Classic Foil"
 
     # 5. Default for singles
-    return "Classic Paper"
+    else:
+        base_treatment = "Classic Paper"
+
+    # Append Alt Art suffix if applicable
+    if is_alt_art:
+        return f"{base_treatment} Alt Art"
+
+    return base_treatment
 
 
 def _detect_product_subtype(title: str, product_type: str = "Single") -> Optional[str]:
@@ -1015,7 +1211,10 @@ def _parse_generic_results(html_content: str, card_id: int, listing_type: str, c
     if listing_type == "active":
         indexed_indices = set()  # No dedup for active listings
     else:
-        indexed_indices = _bulk_check_indexed(card_id, all_listings_data) if not return_all else set()
+        indexed_indices = _bulk_check_indexed(
+            card_id, all_listings_data,
+            card_name=card_name, product_type=product_type
+        ) if not return_all else set()
 
     # Phase 1c: Filter out already-indexed listings (unless return_all=True for stats)
     listings_to_extract = []
