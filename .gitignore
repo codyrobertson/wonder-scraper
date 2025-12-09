@@ -75,3 +75,4 @@ frontend/app.config.timestamp_*.js
 
 # Vercel build output
 public/
+.coverage
