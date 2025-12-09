@@ -40,6 +40,20 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Brand mint green color palette
+        brand: {
+          50: '#edfcf5',
+          100: '#d4f7e6',
+          200: '#adedd2',
+          300: '#7dd3a8', // Base brand color
+          400: '#4ab888',
+          500: '#279d6e',
+          600: '#1a7f59',
+          700: '#166549',
+          800: '#14503b',
+          900: '#124232',
+          950: '#09251c',
+        },
       },
     },
   },
