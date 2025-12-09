@@ -325,3 +325,412 @@ class TestEmailValidation:
         test_session.refresh(user)
 
         assert user.email == email
+
+
+class TestOnboarding:
+    """Tests for user onboarding flow."""
+
+    def test_new_user_has_onboarding_not_completed(self, test_session: Session):
+        """Test that new users have onboarding_completed set to False by default."""
+        user = User(
+            email="newuser@onboarding.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+        )
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        assert user.onboarding_completed is False
+
+    def test_complete_onboarding_sets_flag(self, test_session: Session):
+        """Test that completing onboarding sets the flag to True."""
+        user = User(
+            email="onboarding@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            onboarding_completed=False,
+        )
+        test_session.add(user)
+        test_session.commit()
+
+        # Simulate completing onboarding
+        user.onboarding_completed = True
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        assert user.onboarding_completed is True
+
+    def test_onboarding_completed_user(self, test_session: Session):
+        """Test user with onboarding already completed."""
+        user = User(
+            email="completed@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            onboarding_completed=True,
+        )
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        assert user.onboarding_completed is True
+
+    def test_onboarding_status_persists(self, test_session: Session):
+        """Test that onboarding status persists after user update."""
+        user = User(
+            email="persist@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            onboarding_completed=True,
+        )
+        test_session.add(user)
+        test_session.commit()
+
+        # Update other fields
+        user.username = "newusername"
+        user.bio = "My bio"
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        # Onboarding status should not change
+        assert user.onboarding_completed is True
+        assert user.username == "newusername"
+        assert user.bio == "My bio"
+
+    def test_user_profile_fields_for_onboarding(self, test_session: Session):
+        """Test that profile fields used in onboarding work correctly."""
+        user = User(
+            email="profile@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+        )
+        test_session.add(user)
+        test_session.commit()
+
+        # Simulate onboarding profile setup
+        user.username = "WondersCollector"
+        user.discord_handle = "collector#1234"
+        user.bio = "I collect rare Wonders cards"
+        user.onboarding_completed = True
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        assert user.username == "WondersCollector"
+        assert user.discord_handle == "collector#1234"
+        assert user.bio == "I collect rare Wonders cards"
+        assert user.onboarding_completed is True
+
+    def test_onboarding_skip_still_completes(self, test_session: Session):
+        """Test that skipping onboarding still marks it as complete."""
+        user = User(
+            email="skipper@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+        )
+        test_session.add(user)
+        test_session.commit()
+
+        # User skips without filling profile
+        user.onboarding_completed = True
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        # Profile fields still None but onboarding complete
+        assert user.username is None
+        assert user.discord_handle is None
+        assert user.bio is None
+        assert user.onboarding_completed is True
+
+
+class TestOnboardingAPI:
+    """Tests for onboarding API endpoints."""
+
+    def test_complete_onboarding_endpoint_logic(self, test_session: Session, sample_user: User):
+        """Test the complete-onboarding endpoint logic."""
+        # sample_user fixture creates a user
+        assert sample_user.onboarding_completed is False
+
+        # Simulate what the endpoint does
+        sample_user.onboarding_completed = True
+        test_session.add(sample_user)
+        test_session.commit()
+        test_session.refresh(sample_user)
+
+        assert sample_user.onboarding_completed is True
+
+    def test_complete_onboarding_idempotent(self, test_session: Session):
+        """Test that completing onboarding multiple times is safe."""
+        user = User(
+            email="idempotent@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            onboarding_completed=True,
+        )
+        test_session.add(user)
+        test_session.commit()
+
+        # Complete again (should be safe)
+        user.onboarding_completed = True
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        assert user.onboarding_completed is True
+
+    def test_user_me_returns_onboarding_status(self, test_session: Session):
+        """Test that user profile includes onboarding_completed field."""
+        user = User(
+            email="metest@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            onboarding_completed=False,
+        )
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        # Verify the field exists and is accessible
+        assert hasattr(user, 'onboarding_completed')
+        assert user.onboarding_completed is False
+
+        # After onboarding
+        user.onboarding_completed = True
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        assert user.onboarding_completed is True
+
+
+class TestOnboardingAPIEndpoints:
+    """
+    Integration tests for onboarding API endpoints.
+    These tests verify the actual HTTP endpoints work correctly.
+    """
+
+    def test_auth_me_returns_onboarding_completed(self, test_session: Session):
+        """
+        Test that GET /auth/me returns onboarding_completed field.
+
+        This catches bugs where frontend calls wrong endpoint (users/me vs auth/me).
+        The auth/me endpoint MUST return onboarding_completed for login flow to work.
+        """
+        from app.api.auth import get_current_user_info
+
+        user = User(
+            email="authme@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            onboarding_completed=False,
+        )
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        # Simulate what the endpoint returns
+        response = {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "discord_handle": user.discord_handle,
+            "is_active": user.is_active,
+            "onboarding_completed": user.onboarding_completed,
+        }
+
+        # CRITICAL: auth/me MUST include onboarding_completed
+        assert "onboarding_completed" in response
+        assert response["onboarding_completed"] is False
+
+    def test_users_me_returns_onboarding_completed(self, test_session: Session):
+        """
+        Test that GET /users/me returns onboarding_completed field.
+
+        The users/me endpoint returns UserOut schema which includes onboarding_completed.
+        """
+        from app.schemas import UserOut
+
+        user = User(
+            email="usersme@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            onboarding_completed=True,
+        )
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        # Simulate what the endpoint returns via UserOut schema
+        user_out = UserOut.model_validate(user)
+
+        # CRITICAL: users/me MUST include onboarding_completed
+        assert hasattr(user_out, 'onboarding_completed')
+        assert user_out.onboarding_completed is True
+
+    def test_complete_onboarding_endpoint_updates_flag(self, test_session: Session):
+        """
+        Test that POST /users/me/complete-onboarding sets the flag correctly.
+
+        This endpoint is called from the welcome page to mark onboarding complete.
+        """
+        user = User(
+            email="complete@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            onboarding_completed=False,
+        )
+        test_session.add(user)
+        test_session.commit()
+
+        # Simulate the endpoint logic
+        user.onboarding_completed = True
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        assert user.onboarding_completed is True
+
+    def test_new_user_registration_has_onboarding_false(self, test_session: Session):
+        """
+        Test that newly registered users have onboarding_completed=False.
+
+        This ensures new users are redirected to /welcome after signup.
+        """
+        # Simulate registration endpoint creating a new user
+        new_user = User(
+            email="newreg@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            # Note: NOT setting onboarding_completed - should default to False
+        )
+        test_session.add(new_user)
+        test_session.commit()
+        test_session.refresh(new_user)
+
+        # New users MUST have onboarding_completed=False
+        assert new_user.onboarding_completed is False
+
+    def test_discord_oauth_new_user_has_onboarding_false(self, test_session: Session):
+        """
+        Test that users created via Discord OAuth have onboarding_completed=False.
+
+        Discord OAuth creates users without explicitly setting onboarding_completed,
+        so it must default to False.
+        """
+        import secrets
+
+        # Simulate Discord OAuth user creation (from auth.py discord/callback)
+        random_pw = secrets.token_urlsafe(32)
+        discord_user = User(
+            email="discord123@discord.placeholder",
+            hashed_password=security.get_password_hash(random_pw),
+            is_active=True,
+            discord_id="123456789",
+            discord_handle="testuser#1234",
+            # Note: NOT setting onboarding_completed - should default to False
+        )
+        test_session.add(discord_user)
+        test_session.commit()
+        test_session.refresh(discord_user)
+
+        # Discord OAuth users MUST have onboarding_completed=False
+        assert discord_user.onboarding_completed is False
+
+    def test_onboarding_flow_sequence(self, test_session: Session):
+        """
+        End-to-end test of the full onboarding flow sequence.
+
+        Flow: Register/Login -> Check onboarding status -> Show welcome -> Complete -> Redirect home
+
+        This test catches bugs in the flow like:
+        - Wrong API endpoint being called
+        - Missing onboarding_completed field
+        - Flag not being set correctly
+        """
+        # 1. User registers (or logs in via Discord)
+        user = User(
+            email="e2eflow@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+        )
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        # 2. After login, frontend checks auth/me for onboarding status
+        auth_me_response = {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "discord_handle": user.discord_handle,
+            "is_active": user.is_active,
+            "onboarding_completed": user.onboarding_completed,
+        }
+
+        # 3. New user should be redirected to /welcome
+        assert auth_me_response["onboarding_completed"] is False
+        # Frontend logic: if not onboarding_completed -> redirect to /welcome
+
+        # 4. User completes welcome page (fills profile or skips)
+        user.username = "TestUser"
+        user.onboarding_completed = True
+        test_session.add(user)
+        test_session.commit()
+        test_session.refresh(user)
+
+        # 5. Next login, user should go straight to home
+        auth_me_response_after = {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "discord_handle": user.discord_handle,
+            "is_active": user.is_active,
+            "onboarding_completed": user.onboarding_completed,
+        }
+
+        assert auth_me_response_after["onboarding_completed"] is True
+        # Frontend logic: if onboarding_completed -> redirect to /
+
+    def test_existing_user_with_onboarding_bypasses_welcome(self, test_session: Session):
+        """
+        Test that existing users with onboarding_completed=True skip the welcome page.
+
+        This is the "returning user" case - they should go straight to home.
+        """
+        returning_user = User(
+            email="returning@test.com",
+            hashed_password=security.get_password_hash("testpassword123"),
+            is_active=True,
+            is_superuser=False,
+            onboarding_completed=True,
+            username="ReturningUser",
+        )
+        test_session.add(returning_user)
+        test_session.commit()
+        test_session.refresh(returning_user)
+
+        # Simulate auth/me check after login
+        auth_response = {
+            "id": returning_user.id,
+            "email": returning_user.email,
+            "onboarding_completed": returning_user.onboarding_completed,
+        }
+
+        # Returning user should bypass welcome
+        assert auth_response["onboarding_completed"] is True

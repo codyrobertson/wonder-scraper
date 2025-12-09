@@ -252,6 +252,25 @@ def sample_user(test_session: Session) -> User:
         hashed_password=security.get_password_hash("testpassword123"),
         is_active=True,
         is_superuser=False,
+        onboarding_completed=False,
+    )
+    test_session.add(user)
+    test_session.commit()
+    test_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def onboarded_user(test_session: Session) -> User:
+    """Create a user who has completed onboarding."""
+    user = User(
+        id=10,
+        email="onboarded@example.com",
+        hashed_password=security.get_password_hash("testpassword123"),
+        is_active=True,
+        is_superuser=False,
+        onboarding_completed=True,
+        username="OnboardedUser",
     )
     test_session.add(user)
     test_session.commit()
