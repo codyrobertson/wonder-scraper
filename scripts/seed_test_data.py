@@ -270,11 +270,10 @@ def seed_market_snapshots(session: Session, cards: list) -> list:
     for card in cards[:5]:  # Only first 5 cards
         snapshot = MarketSnapshot(
             card_id=card.id,
-            floor_price=10.00 + card.id,
-            volume_24h=5,
-            volume_7d=20,
-            volume_30d=50,
-            avg_price_7d=15.00 + card.id,
+            min_price=10.00 + card.id,
+            max_price=20.00 + card.id,
+            avg_price=15.00 + card.id,
+            volume=50,
             timestamp=now,
         )
         session.add(snapshot)
