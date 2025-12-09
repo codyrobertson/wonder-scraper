@@ -174,6 +174,26 @@ class TestSingleTreatmentDetection:
         result = _detect_treatment(title, product_type="Single")
         assert result == expected
 
+    # === ALT ART VARIANTS ===
+    @pytest.mark.parametrize("title,expected", [
+        # Explicit "Alt Art" keyword
+        ("Wonders of the First Pinkspore Dreamcap Alt Art Formless Foil", "Formless Foil Alt Art"),
+        ("WOTF Alternate Art Moonfire Crystal Mouse", "Classic Paper Alt Art"),
+        ("Wonders Alt Art Promo Card", "Promo Alt Art"),
+        # A1-A8 numbering pattern
+        ("Wonders Of The First A2-361/401 PINKSPORE DREAMCAP Formless Foil", "Formless Foil Alt Art"),
+        ("WOTF #A5-361/401 Pinkspore Dreamcap Formless", "Formless Foil Alt Art"),
+        ("Wonders of the First A1-354/401 Moonfire Crystal Mouse", "Classic Paper Alt Art"),
+        # Alt Art + OCM Serialized
+        ("Wonders of the First ZipZip NugNug Alt Art Serialized /99", "OCM Serialized Alt Art"),
+        # Alt Art + Classic Foil
+        ("Wonders of the First Alt Art Foil Card", "Classic Foil Alt Art"),
+    ])
+    def test_alt_art_detection(self, title, expected):
+        """Test that Alt Art variants are correctly detected with base treatment."""
+        result = _detect_treatment(title, product_type="Single")
+        assert result == expected, f"Expected {expected} for '{title}', got {result}"
+
     # === PRIORITY TESTS ===
     def test_serialized_priority_over_foil(self):
         """Test that serialized takes priority over foil keywords."""
@@ -186,6 +206,20 @@ class TestSingleTreatmentDetection:
         title = "Wonders of the First Stone Foil Foil Card"
         result = _detect_treatment(title, product_type="Single")
         assert result == "Stonefoil"
+
+    def test_alt_art_appends_to_any_treatment(self):
+        """Test that Alt Art suffix is appended to any base treatment."""
+        # Alt Art + Formless Foil
+        result = _detect_treatment("WOTF Formless Foil Alt Art", product_type="Single")
+        assert result == "Formless Foil Alt Art"
+
+        # Alt Art + Classic Paper (default)
+        result = _detect_treatment("Wonders Alternate Art Card", product_type="Single")
+        assert result == "Classic Paper Alt Art"
+
+        # Alt Art + Prerelease
+        result = _detect_treatment("WOTF Prerelease Alt Art Card", product_type="Single")
+        assert result == "Prerelease Alt Art"
 
 
 class TestProductSubtypeDetection:
@@ -539,6 +573,10 @@ class TestDataQualityIntegration:
         valid_single_treatments = {
             "Classic Paper", "Classic Foil", "Stonefoil", "Formless Foil",
             "OCM Serialized", "Prerelease", "Promo", "Proof/Sample", "Error/Errata",
+            # Alt Art variants
+            "Classic Paper Alt Art", "Classic Foil Alt Art", "Stonefoil Alt Art",
+            "Formless Foil Alt Art", "OCM Serialized Alt Art", "Prerelease Alt Art",
+            "Promo Alt Art", "Proof/Sample Alt Art", "Error/Errata Alt Art",
             ""  # Allow empty/null
         }
 
