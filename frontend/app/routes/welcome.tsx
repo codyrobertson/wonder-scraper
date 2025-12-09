@@ -64,6 +64,8 @@ function Welcome() {
           bio: bio || null,
         }
       })
+      // Mark onboarding as complete
+      await api.post('users/me/complete-onboarding')
       analytics.trackProfileCompleted(!!username, !!discordHandle)
       // Navigate to upsell page
       router.navigate({ to: '/upgrade' as any })
@@ -75,7 +77,13 @@ function Welcome() {
     }
   }
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    // Mark onboarding as complete even if skipped
+    try {
+      await api.post('users/me/complete-onboarding')
+    } catch (e) {
+      console.error('Failed to complete onboarding:', e)
+    }
     analytics.trackProfileSkipped()
     router.navigate({ to: '/upgrade' as any })
   }

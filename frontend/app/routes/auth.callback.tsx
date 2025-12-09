@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter, useSearch } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { analytics } from '~/services/analytics'
+import { api } from '~/utils/auth'
 
 export const Route = createFileRoute('/auth/callback')({
   component: AuthCallback,
@@ -11,21 +12,46 @@ export const Route = createFileRoute('/auth/callback')({
   },
 })
 
+interface UserProfile {
+  id: number
+  email: string
+  username?: string
+  discord_handle?: string
+  is_active: boolean
+  onboarding_completed: boolean
+}
+
 function AuthCallback() {
   const search = useSearch({ from: Route.id })
   const router = useRouter()
 
   useEffect(() => {
-    if (search.token) {
-      localStorage.setItem('token', search.token)
-      // Track successful Discord login
-      analytics.trackLogin('discord')
-      // Redirect to welcome page for profile completion
-      window.location.href = '/welcome'
-    } else {
-      // No token? Redirect to login
-      router.navigate({ to: '/login' })
+    const handleAuth = async () => {
+      if (search.token) {
+        localStorage.setItem('token', search.token)
+        // Track successful Discord login
+        analytics.trackLogin('discord')
+
+        // Check if user has completed onboarding
+        try {
+          const profile = await api.get('auth/me').json<UserProfile>()
+          if (profile.onboarding_completed) {
+            // Already onboarded, go to home
+            window.location.href = '/'
+          } else {
+            // New user or hasn't completed onboarding
+            window.location.href = '/welcome'
+          }
+        } catch (e) {
+          // If we can't check, default to welcome
+          window.location.href = '/welcome'
+        }
+      } else {
+        // No token? Redirect to login
+        router.navigate({ to: '/login' })
+      }
     }
+    handleAuth()
   }, [search.token, router])
 
   return (
