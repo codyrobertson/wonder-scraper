@@ -69,6 +69,7 @@ export const auth = {
         username?: string
         discord_handle?: string
         is_active: boolean
+        onboarding_completed: boolean
       }>()
       return user
     } catch (e) {

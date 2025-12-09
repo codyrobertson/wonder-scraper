@@ -65,7 +65,8 @@ function Signup() {
       if (loginRes.access_token) {
         localStorage.setItem('token', loginRes.access_token)
         analytics.trackSignup('email')
-        navigate({ to: '/' })
+        // New users go to onboarding
+        window.location.href = '/welcome'
       }
     } catch (err: any) {
       setError(err.message || 'Failed to create account. Please try again.')
