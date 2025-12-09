@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
 
+@pytest.mark.integration
 class TestAntiScrapingIntegration:
     """Integration tests for anti-scraping middleware."""
 
@@ -70,6 +71,7 @@ class TestAntiScrapingIntegration:
         assert response.status_code in [200, 401, 403, 429]
 
 
+@pytest.mark.integration
 class TestAPIKeyAuthentication:
     """Test API key authentication."""
 
@@ -165,6 +167,7 @@ class TestRateLimiting:
         assert test_ip in middleware._blocked_ips
 
 
+@pytest.mark.integration
 class TestDatabaseSecurity:
     """Test database security configurations."""
 
@@ -230,6 +233,7 @@ class TestDatabaseSecurity:
         # React's JSX auto-escapes user content preventing XSS
 
 
+@pytest.mark.integration
 class TestEndpointProtection:
     """Test that sensitive endpoints are properly protected."""
 

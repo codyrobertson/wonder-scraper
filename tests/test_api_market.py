@@ -16,6 +16,9 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.market import MarketPrice, ListingReport
 
+# Mark all tests in this module as integration tests (client uses real database)
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def client():

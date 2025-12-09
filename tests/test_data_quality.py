@@ -16,6 +16,9 @@ from sqlmodel import Session, select, func
 from app.models.card import Card
 from app.models.market import MarketPrice
 
+# Mark all tests in this module as integration tests (require real database with data)
+pytestmark = pytest.mark.integration
+
 
 class DataQualityReport:
     """Collects and reports data quality issues."""

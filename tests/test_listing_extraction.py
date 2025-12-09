@@ -518,6 +518,7 @@ class TestBundlePackCount:
         assert result == expected, f"Expected {expected} for '{title}', got {result}"
 
 
+@pytest.mark.integration
 class TestDataQualityIntegration:
     """Integration tests for extraction against real database data."""
 
