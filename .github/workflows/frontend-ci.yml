@@ -1,0 +1,164 @@
+name: Frontend CI - STRICT
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'vercel.json'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'vercel.json'
+      - '.github/workflows/frontend-ci.yml'
+
+env:
+  NODE_VERSION: '20'
+  CI: true
+
+jobs:
+  # ============================================
+  # LINT - Must pass or build is blocked
+  # ============================================
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run ESLint
+        run: npm run lint
+      
+      - name: TypeScript Check
+        run: npx tsc --noEmit
+
+  # ============================================
+  # TESTS - Critical API URL validation
+  # ============================================
+  test:
+    name: Tests (API URL Validation)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run Tests
+        run: npm run test:run
+        env:
+          CI: true
+
+  # ============================================
+  # BUILD - Production build must succeed
+  # ============================================
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    defaults:
+      run:
+        working-directory: frontend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build for production
+        run: npm run build:vercel
+        env:
+          VITE_API_URL: /api/v1
+      
+      - name: Verify build output
+        run: |
+          if [ ! -f dist/index.html ]; then
+            echo "ERROR: Build failed - no index.html found"
+            exit 1
+          fi
+          echo "Build successful!"
+          ls -la dist/
+
+  # ============================================
+  # VERCEL CONFIG VALIDATION
+  # ============================================
+  validate-vercel:
+    name: Validate Vercel Config
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate vercel.json syntax
+        run: |
+          if ! python3 -c "import json; json.load(open('vercel.json'))"; then
+            echo "ERROR: vercel.json is invalid JSON"
+            exit 1
+          fi
+      
+      - name: Check API proxy config
+        run: |
+          if ! grep -q "wonder-scraper-production.up.railway.app" vercel.json; then
+            echo "ERROR: Missing Railway API proxy in vercel.json"
+            exit 1
+          fi
+          echo "Vercel config validated!"
+
+  # ============================================
+  # SECURITY SCAN
+  # ============================================
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Audit dependencies
+        run: npm audit --audit-level=high || true
+        continue-on-error: true

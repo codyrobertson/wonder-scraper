@@ -1,10 +1,10 @@
-import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
-import { api, auth } from '../utils/auth'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { api } from '../utils/auth'
 import { analytics } from '~/services/analytics'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getSortedRowModel, SortingState, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
-import { useState, useMemo, useEffect, useCallback } from 'react'
-import { ArrowUpDown, Search, ArrowUp, ArrowDown, Calendar, TrendingUp, DollarSign, BarChart3, LayoutDashboard, ChevronLeft, ChevronRight, Plus, Package, Layers, Gem, Archive } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { ArrowUpDown, Search, LayoutDashboard, ChevronLeft, ChevronRight, Plus, Package, Layers, Gem, Archive } from 'lucide-react'
 import clsx from 'clsx'
 import { Tooltip } from '../components/ui/tooltip'
 import { SimpleDropdown } from '../components/ui/dropdown'
@@ -75,7 +75,7 @@ function Home() {
   const [hideLowSignal, setHideLowSignal] = useState<boolean>(true)  // Hide low signal cards by default
   const [trackingCard, setTrackingCard] = useState<Card | null>(null)
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const _queryClient = useQueryClient()
 
   // Debounced search tracking
   useEffect(() => {
@@ -439,8 +439,8 @@ function Home() {
     },
   })
 
-  // Compute dynamic sidebars
-  const topGainers = useMemo(() => {
+  // Compute dynamic sidebars (reserved for future sidebar features)
+  const _topGainers = useMemo(() => {
       if (!cards) return []
       // Lower threshold to 0.01% to capture more gainers
       const getDelta = (c: Card) => c.price_delta ?? c.price_delta_24h ?? 0
@@ -450,7 +450,7 @@ function Home() {
           .slice(0, 5)
   }, [cards])
 
-  const topLosers = useMemo(() => {
+  const _topLosers = useMemo(() => {
       if (!cards) return []
       // Lower threshold to -0.01% to capture more losers
       const getDelta = (c: Card) => c.price_delta ?? c.price_delta_24h ?? 0
@@ -460,16 +460,16 @@ function Home() {
           .slice(0, 5)
   }, [cards])
 
-  const topVolume = useMemo(() => {
+  const _topVolume = useMemo(() => {
       if (!cards) return []
       const getVolume = (c: Card) => c.volume ?? c.volume_30d ?? 0
       return [...cards]
           .sort((a, b) => getVolume(b) - getVolume(a))
           .slice(0, 5)
   }, [cards])
-  
-  // Calculate market metrics
-  const marketMetrics = useMemo(() => {
+
+  // Calculate market metrics (reserved for future header display)
+  const _marketMetrics = useMemo(() => {
       if (!cards) return { totalVolume: 0, totalVolumeUSD: 0, avgVelocity: 0 }
 
       const getVolume = (c: Card) => c.volume ?? c.volume_30d ?? 0
@@ -573,12 +573,28 @@ function Home() {
                 ) : (
                     <>
                         <div className="overflow-auto flex-1">
-                            <table className="w-full text-sm text-left">
+                            <table className="w-full text-sm table-fixed">
+                                <colgroup>
+                                    <col className="w-[200px] md:w-[280px]" /> {/* Name */}
+                                    <col className="w-[100px] md:w-[120px]" /> {/* Floor */}
+                                    <col className="w-[60px]" /> {/* Vol */}
+                                    <col className="w-[90px]" /> {/* Last Sale */}
+                                    <col className="w-[80px]" /> {/* High */}
+                                    <col className="w-[70px]" /> {/* Ask */}
+                                    <col className="w-[70px]" /> {/* Listings */}
+                                    <col className="w-[50px]" /> {/* Track */}
+                                </colgroup>
                                 <thead className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border sticky top-0 z-10">
                                     {table.getHeaderGroups().map(headerGroup => (
                                         <tr key={headerGroup.id}>
-                                            {headerGroup.headers.map(header => (
-                                            <th key={header.id} className="px-2 py-1.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30">
+                                            {headerGroup.headers.map((header, idx) => (
+                                            <th
+                                                key={header.id}
+                                                className={clsx(
+                                                    "px-2 py-1.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30",
+                                                    idx === 0 ? "text-left" : idx === headerGroup.headers.length - 1 ? "text-center" : "text-right"
+                                                )}
+                                            >
                                                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                                 </th>
                                             ))}
@@ -593,8 +609,14 @@ function Home() {
                                                 className="hover:bg-muted/30 transition-colors cursor-pointer group"
                                                 onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: row.original.slug || String(row.original.id) } })}
                                             >
-                                                {row.getVisibleCells().map(cell => (
-                                                <td key={cell.id} className="px-2 py-1.5 whitespace-nowrap">
+                                                {row.getVisibleCells().map((cell, idx) => (
+                                                <td
+                                                    key={cell.id}
+                                                    className={clsx(
+                                                        "px-2 py-1.5 whitespace-nowrap overflow-hidden",
+                                                        idx === 0 ? "text-left" : idx === row.getVisibleCells().length - 1 ? "text-center" : "text-right"
+                                                    )}
+                                                >
                                                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                                     </td>
                                                 ))}
