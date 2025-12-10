@@ -4,18 +4,10 @@
   "installCommand": "npm install",
   "framework": null,
   "trailingSlash": false,
-  "functions": {
-    "frontend/_functions/**/*.ts": {
-      "runtime": "@vercel/node@3"
-    },
-    "frontend/_functions/**/*.tsx": {
-      "runtime": "@vercel/node@3"
-    }
-  },
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/_functions/sitemap" },
-    { "source": "/api/og/:cardId", "destination": "/_functions/og/[cardId]" },
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/api/og/:cardId", "destination": "/api/og/[cardId]" },
     { "source": "/api/v1/:path(.*)", "destination": "https://wonder-scraper-production.up.railway.app/api/v1/:path" },
-    { "source": "/((?!_functions/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
