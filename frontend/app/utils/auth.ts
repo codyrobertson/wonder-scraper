@@ -20,6 +20,13 @@ export const api = ky.create({
   },
 })
 
+// Helper to notify app of auth state changes
+const notifyAuthChange = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('auth-change'))
+  }
+}
+
 export const auth = {
   login: async (email: string, password: string) => {
     try {
@@ -33,6 +40,8 @@ export const auth = {
       if (res.access_token) {
         // Store in localStorage as backup (cookie is set by server)
         localStorage.setItem('token', res.access_token)
+        // Notify app of auth state change
+        notifyAuthChange()
         return true
       }
       return false
@@ -51,6 +60,8 @@ export const auth = {
     }
     // Clear localStorage
     localStorage.removeItem('token')
+    // Notify app of auth state change
+    notifyAuthChange()
     window.location.href = '/login'
   },
 
