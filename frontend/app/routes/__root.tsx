@@ -218,7 +218,7 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
   const { data: cards = [] } = useQuery({
       queryKey: ['cards', timePeriod, 'all'], // Same key as dashboard with productType='all'
       queryFn: async () => {
-          return await api.get(`cards/?limit=500&time_period=${timePeriod}&slim=true`).json<Card[]>()
+          return await api.get(`cards?limit=500&time_period=${timePeriod}&slim=true`).json<Card[]>()
       },
       staleTime: 5 * 60 * 1000, // 5 minutes
       gcTime: 30 * 60 * 1000, // 30 minutes cache

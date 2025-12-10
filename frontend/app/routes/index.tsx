@@ -108,7 +108,7 @@ function Home() {
       const typeParam = productType !== 'all' ? `&product_type=${productType}` : ''
       // Load all cards - important ones can be deep in the list
       // slim=true reduces payload by ~50% for faster loading
-      const data = await api.get(`cards/?limit=500&time_period=${timePeriod}${typeParam}&slim=true`).json<Card[]>()
+      const data = await api.get(`cards?limit=500&time_period=${timePeriod}${typeParam}&slim=true`).json<Card[]>()
       return data.map(c => ({
           ...c,
           // Use new field names with fallback to deprecated for backwards compat
