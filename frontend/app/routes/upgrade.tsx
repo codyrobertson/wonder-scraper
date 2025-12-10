@@ -173,7 +173,7 @@ function Upgrade() {
 
             <div className="relative">
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-5xl font-bold text-white">$49.95</span>
+                <span className="text-5xl font-bold text-white">$9.99</span>
                 <span className="text-zinc-500">/month</span>
               </div>
 
