@@ -29,6 +29,8 @@ function AuthCallback() {
     const handleAuth = async () => {
       if (search.token) {
         localStorage.setItem('token', search.token)
+        // Notify app of auth state change
+        window.dispatchEvent(new Event('auth-change'))
         // Track successful Discord login
         analytics.trackLogin('discord')
 

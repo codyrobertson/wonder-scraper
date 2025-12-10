@@ -1,6 +1,6 @@
 import { Outlet, createRootRoute, Link, useNavigate, redirect, useLocation } from '@tanstack/react-router'
 import { LayoutDashboard, LineChart, Wallet, User, Server, LogOut, Menu, X, Shield, ChevronDown, Settings, Sparkles } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, auth } from '../utils/auth'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { usePageTracking } from '../hooks/usePageTracking'
@@ -167,8 +167,31 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
   // Track page views for internal analytics
   usePageTracking()
 
-  // Check if user has token before making API call
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token')
+  // React Query client for cache invalidation
+  const queryClient = useQueryClient()
+
+  // Reactive auth state - listens for auth-change events from login/logout
+  const [hasToken, setHasToken] = useState(() =>
+    typeof window !== 'undefined' && !!localStorage.getItem('token')
+  )
+
+  // Listen for auth changes (login/logout from same tab or other tabs)
+  useEffect(() => {
+    const handleAuthChange = () => {
+      const newHasToken = !!localStorage.getItem('token')
+      setHasToken(newHasToken)
+      // Invalidate user query to force refetch on auth state change
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+    }
+    // Custom event for same-tab auth changes
+    window.addEventListener('auth-change', handleAuthChange)
+    // Storage event for cross-tab auth changes
+    window.addEventListener('storage', handleAuthChange)
+    return () => {
+      window.removeEventListener('auth-change', handleAuthChange)
+      window.removeEventListener('storage', handleAuthChange)
+    }
+  }, [queryClient])
 
   const { data: user } = useQuery({
       queryKey: ['me'],
