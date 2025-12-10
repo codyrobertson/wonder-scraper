@@ -147,12 +147,32 @@ function trackSearch(searchTerm: string) {
 /**
  * Event: Filter Applied
  * Triggered when a user applies a filter
+ * Filter types: set, condition, printing, product_type, card_type, color, rarity, time_period
  */
 function trackFilterApplied(filterType: string, filterValue: string) {
   track('filter_applied', {
     filter_type: filterType,
     filter_value: filterValue,
   })
+}
+
+/**
+ * Event: Filter Removed
+ * Triggered when a user removes a single filter (e.g., clicking X on a filter chip)
+ */
+function trackFilterRemoved(filterType: string, filterValue: string) {
+  track('filter_removed', {
+    filter_type: filterType,
+    filter_value: filterValue,
+  })
+}
+
+/**
+ * Event: Filters Cleared
+ * Triggered when a user clears all filters at once
+ */
+function trackFiltersCleared(filterCount: number) {
+  track('filters_cleared', { filter_count: filterCount })
 }
 
 /**
@@ -336,6 +356,8 @@ export const analytics = {
   // Discovery Events
   trackSearch,
   trackFilterApplied,
+  trackFilterRemoved,
+  trackFiltersCleared,
 
   // Market Events
   trackMarketPageView,

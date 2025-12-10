@@ -209,21 +209,115 @@ describe('Analytics Service', () => {
       })
     })
 
-    it('should track filter applied', () => {
-      analytics.trackFilterApplied('time_period', '30d')
+    describe('Filter Applied', () => {
+      it('should track time_period filter', () => {
+        analytics.trackFilterApplied('time_period', '30d')
 
-      expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
-        filter_type: 'time_period',
-        filter_value: '30d',
+        expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
+          filter_type: 'time_period',
+          filter_value: '30d',
+        })
+      })
+
+      it('should track product_type filter', () => {
+        analytics.trackFilterApplied('product_type', 'Box')
+
+        expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
+          filter_type: 'product_type',
+          filter_value: 'Box',
+        })
+      })
+
+      it('should track set filter', () => {
+        analytics.trackFilterApplied('set', 'Star Wars: Destiny')
+
+        expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
+          filter_type: 'set',
+          filter_value: 'Star Wars: Destiny',
+        })
+      })
+
+      it('should track condition filter', () => {
+        analytics.trackFilterApplied('condition', 'Near Mint')
+
+        expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
+          filter_type: 'condition',
+          filter_value: 'Near Mint',
+        })
+      })
+
+      it('should track printing filter', () => {
+        analytics.trackFilterApplied('printing', 'First Edition')
+
+        expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
+          filter_type: 'printing',
+          filter_value: 'First Edition',
+        })
+      })
+
+      it('should track card_type filter', () => {
+        analytics.trackFilterApplied('card_type', 'Character')
+
+        expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
+          filter_type: 'card_type',
+          filter_value: 'Character',
+        })
+      })
+
+      it('should track color filter', () => {
+        analytics.trackFilterApplied('color', 'Blue')
+
+        expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
+          filter_type: 'color',
+          filter_value: 'Blue',
+        })
+      })
+
+      it('should track rarity filter', () => {
+        analytics.trackFilterApplied('rarity', 'Legendary')
+
+        expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
+          filter_type: 'rarity',
+          filter_value: 'Legendary',
+        })
       })
     })
 
-    it('should track product type filter', () => {
-      analytics.trackFilterApplied('product_type', 'Box')
+    describe('Filter Removed', () => {
+      it('should track single filter removal', () => {
+        analytics.trackFilterRemoved('set', 'Star Wars: Destiny')
 
-      expect(mockedTrack).toHaveBeenCalledWith('filter_applied', {
-        filter_type: 'product_type',
-        filter_value: 'Box',
+        expect(mockedTrack).toHaveBeenCalledWith('filter_removed', {
+          filter_type: 'set',
+          filter_value: 'Star Wars: Destiny',
+        })
+      })
+
+      it('should track rarity filter removal', () => {
+        analytics.trackFilterRemoved('rarity', 'Mythic')
+
+        expect(mockedTrack).toHaveBeenCalledWith('filter_removed', {
+          filter_type: 'rarity',
+          filter_value: 'Mythic',
+        })
+      })
+    })
+
+    describe('Filters Cleared', () => {
+      it('should track clearing all filters with count', () => {
+        analytics.trackFiltersCleared(3)
+
+        expect(mockedTrack).toHaveBeenCalledWith('filters_cleared', {
+          filter_count: 3,
+        })
+      })
+
+      it('should track clearing single filter', () => {
+        analytics.trackFiltersCleared(1)
+
+        expect(mockedTrack).toHaveBeenCalledWith('filters_cleared', {
+          filter_count: 1,
+        })
       })
     })
   })
