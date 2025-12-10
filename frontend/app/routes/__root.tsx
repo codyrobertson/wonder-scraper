@@ -261,7 +261,7 @@ function RootLayout({ navigate, mobileMenuOpen, setMobileMenuOpen }: { navigate:
             <Sparkles className="w-3.5 h-3.5" />
             <span>Unlock Pro features: Advanced analytics, API access, and more</span>
             <Link
-              to={"/pro" as any}
+              to="/upgrade"
               className="ml-2 bg-gray-900/20 hover:bg-gray-900/30 px-2 py-0.5 rounded text-[10px] uppercase font-bold transition-colors"
             >
               Upgrade Now

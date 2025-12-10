@@ -334,6 +334,55 @@ async def job_send_daily_digests():
         print(f"[Digest] Error sending daily digests: {e}")
 
 
+async def job_send_personal_welcome_emails():
+    """
+    Send personal welcome emails from founder to users who signed up 24-48h ago.
+    Runs once daily at 10 AM UTC.
+    """
+    print(f"[{datetime.utcnow()}] Checking for Personal Welcome Emails...")
+
+    try:
+        from app.models.user import User
+        from app.services.email import send_personal_welcome_email
+
+        with Session(engine) as session:
+            # Find users who signed up 24-48 hours ago and haven't received the personal welcome
+            now = datetime.utcnow()
+            cutoff_start = now - timedelta(hours=48)  # Oldest eligible
+            cutoff_end = now - timedelta(hours=24)    # Newest eligible
+
+            users = session.exec(
+                select(User).where(
+                    User.created_at >= cutoff_start,
+                    User.created_at <= cutoff_end,
+                    User.personal_welcome_sent_at == None,  # noqa: E711
+                    User.is_active == True,  # noqa: E712
+                )
+            ).all()
+
+            if not users:
+                print("[Personal Welcome] No eligible users")
+                return
+
+            sent_count = 0
+            for user in users:
+                try:
+                    name = user.username or user.email.split("@")[0]
+                    success = send_personal_welcome_email(user.email, name)
+                    if success:
+                        user.personal_welcome_sent_at = now
+                        session.add(user)
+                        sent_count += 1
+                except Exception as e:
+                    print(f"[Personal Welcome] Failed to send to {user.email}: {e}")
+
+            session.commit()
+            print(f"[Personal Welcome] Sent to {sent_count} users")
+
+    except Exception as e:
+        print(f"[Personal Welcome] Error: {e}")
+
+
 async def job_send_weekly_reports():
     """
     Send weekly market report emails to users who have opted in.
@@ -695,6 +744,17 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Personal welcome emails at 10 AM UTC (1 day after signup)
+    scheduler.add_job(
+        job_send_personal_welcome_emails,
+        CronTrigger(hour=10, minute=0),
+        id="job_send_personal_welcome_emails",
+        max_instances=1,
+        misfire_grace_time=3600,  # 1 hour
+        coalesce=True,
+        replace_existing=True,
+    )
+
     # Weekly report emails on Monday at 9:30 AM UTC
     scheduler.add_job(
         job_send_weekly_reports,
@@ -735,6 +795,7 @@ def start_scheduler():
     print("  - job_update_blokpax_data (Blokpax): 20m interval, 10m grace")
     print("  - job_market_insights (Discord AI): 9:00 & 18:00 UTC, 1h grace")
     print("  - job_send_daily_digests (Email): 9:15 UTC daily, 1h grace")
+    print("  - job_send_personal_welcome_emails (Email): 10:00 UTC daily, 1h grace")
     print("  - job_send_weekly_reports (Email): Mon 9:30 UTC, 2h grace")
     print("  - job_check_price_alerts (Email): 30m interval, 15m grace")
     print("  - job_backfill_seller_data (Seller): 3:00 UTC daily, 2h grace")

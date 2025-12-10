@@ -25,6 +25,9 @@ class User(SQLModel, table=True):
     onboarding_completed: bool = Field(default=False)  # Track if user finished onboarding flow
     last_login: Optional[datetime] = Field(default=None, nullable=True)  # Track last successful login
 
+    # Email Marketing
+    personal_welcome_sent_at: Optional[datetime] = Field(default=None, nullable=True)  # 1-day delayed personal welcome
+
     # Password Reset
     password_reset_token: Optional[str] = Field(default=None, nullable=True, index=True)
     password_reset_expires: Optional[datetime] = Field(default=None, nullable=True)

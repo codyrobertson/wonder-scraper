@@ -99,6 +99,111 @@ def send_welcome_email(to_email: str, user_name: Optional[str] = None) -> bool:
         return False
 
 
+def send_personal_welcome_email(to_email: str, user_name: Optional[str] = None) -> bool:
+    """
+    Send a personal welcome email from Cody Robertson 1 day after signup.
+    More personal tone, inviting feedback and community engagement.
+    Returns True if sent successfully, False otherwise.
+    """
+    if not settings.RESEND_API_KEY:
+        print("[Email] Skipping personal welcome email - RESEND_API_KEY not configured")
+        return False
+
+    name = user_name or to_email.split("@")[0]
+
+    try:
+        resend.Emails.send(
+            {
+                "from": "Cody Robertson <cody@wonderstracker.com>",
+                "reply_to": "cody@wonderstracker.com",
+                "to": [to_email],
+                "subject": f"Hey {name} - Quick note from the founder",
+                "html": f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0a0a0a; color: #fafafa; margin: 0; padding: 40px 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #18181b; border-radius: 8px; border: 1px solid #27272a; overflow: hidden;">
+        <!-- Header -->
+        <div style="background-color: #000; padding: 30px; border-bottom: 1px solid #27272a;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="width: 50px; height: 50px; background-color: #27272a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px;">👋</div>
+                <div>
+                    <h1 style="margin: 0; font-size: 20px; font-weight: bold; color: #fafafa;">Hey {name}!</h1>
+                    <p style="margin: 5px 0 0 0; color: #71717a; font-size: 14px;">A personal note from the founder</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 35px 30px;">
+            <p style="color: #e4e4e7; line-height: 1.8; margin: 0 0 20px 0; font-size: 15px;">
+                I'm Cody, the creator of WondersTracker. I noticed you signed up yesterday and wanted to reach out personally.
+            </p>
+
+            <p style="color: #e4e4e7; line-height: 1.8; margin: 0 0 20px 0; font-size: 15px;">
+                I built this platform because I'm a collector myself and was frustrated with how hard it was to track Wonders of the First prices. Now you can:
+            </p>
+
+            <div style="background-color: #27272a; border-radius: 6px; padding: 20px; margin: 25px 0; border-left: 3px solid #3b82f6;">
+                <ul style="margin: 0; padding: 0 0 0 20px; color: #a1a1aa; line-height: 2;">
+                    <li><strong style="color: #fafafa;">Track real-time prices</strong> - eBay & Blokpax data updated hourly</li>
+                    <li><strong style="color: #fafafa;">Build your portfolio</strong> - Track what you own and your total value</li>
+                    <li><strong style="color: #fafafa;">Analyze market trends</strong> - See price history, VWAP, and floor prices</li>
+                    <li><strong style="color: #fafafa;">Set price alerts</strong> - Get notified when cards hit your target price</li>
+                </ul>
+            </div>
+
+            <p style="color: #e4e4e7; line-height: 1.8; margin: 0 0 20px 0; font-size: 15px;">
+                <strong>I'd love your feedback.</strong> What features would make this more useful for you? What's missing? What's confusing?
+            </p>
+
+            <p style="color: #e4e4e7; line-height: 1.8; margin: 0 0 25px 0; font-size: 15px;">
+                Hit me up anytime:
+            </p>
+
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 30px;">
+                <a href="https://discord.com/users/degendraper" style="display: inline-flex; align-items: center; gap: 8px; background-color: #5865F2; color: #fff; padding: 12px 20px; text-decoration: none; font-weight: 600; font-size: 14px; border-radius: 6px;">
+                    <span>💬</span> DM me: degendraper
+                </a>
+                <a href="https://discord.gg/wonderstracker" style="display: inline-flex; align-items: center; gap: 8px; background-color: #27272a; color: #fafafa; padding: 12px 20px; text-decoration: none; font-weight: 600; font-size: 14px; border-radius: 6px; border: 1px solid #3f3f46;">
+                    <span>🎮</span> Join our Discord
+                </a>
+            </div>
+
+            <p style="color: #a1a1aa; line-height: 1.8; margin: 0 0 10px 0; font-size: 15px;">
+                Or just reply to this email - I read every single one.
+            </p>
+
+            <p style="color: #e4e4e7; line-height: 1.8; margin: 30px 0 0 0; font-size: 15px;">
+                Happy collecting,<br>
+                <strong style="color: #fafafa;">Cody Robertson</strong><br>
+                <span style="color: #71717a; font-size: 13px;">Founder, WondersTracker</span>
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #000; padding: 20px 30px; text-align: center; border-top: 1px solid #27272a;">
+            <p style="margin: 0; color: #52525b; font-size: 12px;">
+                WondersTracker - Market Intelligence for Wonders of the First
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+            """,
+            }
+        )
+        print(f"[Email] Personal welcome email sent to {to_email}")
+        return True
+    except Exception as e:
+        print(f"[Email] Failed to send personal welcome email to {to_email}: {e}")
+        return False
+
+
 def send_password_reset_email(to_email: str, reset_token: str) -> bool:
     """
     Send password reset email with reset link.
