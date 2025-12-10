@@ -12,7 +12,7 @@ function DocsOverview() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight mb-2">API Documentation</h1>
         <p className="text-lg text-muted-foreground">
-          Programmatic access to WondersTracker market data for Wonders of the First trading cards.
+          Programmatic access to WondersTracker market data for the Wonders of the First trading card game.
         </p>
       </div>
 

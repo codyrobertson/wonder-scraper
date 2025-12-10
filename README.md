@@ -3,13 +3,13 @@
 [![CI](https://github.com/wonders-tracker/wonder-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/wonders-tracker/wonder-scraper/actions/workflows/ci.yml)
 [![License: O'Saasy](https://img.shields.io/badge/License-O'Saasy-blue.svg)](LICENSE.md)
 
-Real-time market tracking and price analytics platform for the **Wonders of the First** trading card game. Aggregates sales data from eBay and Blokpax to provide pricing, market trends, and portfolio management.
+Real-time market tracking and price analytics platform for the **Wonders of the First** trading card game. Aggregates sales data from eBay, Blokpax, and OpenSea to provide pricing, market trends, and portfolio management.
 
 **Live Site**: [wonderstracker.com](https://wonderstracker.com)
 
 ## Features
 
-- **Real-time Market Data** - Hourly polling of eBay sales and listings
+- **Real-time Market Data** - 15-minute polling of eBay, Blokpax, and OpenSea
 - **Fair Market Price (FMP)** - MAD-trimmed pricing algorithm for accurate valuations
 - **Portfolio Tracking** - Track your collection's value over time
 - **Market Insights** - AI-generated daily market reports
@@ -23,7 +23,7 @@ Real-time market tracking and price analytics platform for the **Wonders of the 
 | **Frontend** | React 19, TanStack Router/Query, Tailwind CSS |
 | **Backend** | FastAPI, SQLModel, APScheduler |
 | **Database** | PostgreSQL (Neon) |
-| **Scraping** | Playwright, BeautifulSoup |
+| **Scraping** | Playwright, BeautifulSoup, HTTP APIs |
 | **Hosting** | Railway (API), Vercel (Frontend) |
 
 ## Quick Start
@@ -149,12 +149,12 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ## Data Usage & Attribution
 
-If you use WondersTrader data (via API, website, or any other means) to create price guides, market reports, valuations, or any derivative content, you **must** comply with the following:
+If you use WondersTracker data (via API, website, or any other means) to create price guides, market reports, valuations, or any derivative content, you **must** comply with the following:
 
-1. **Attribution Required** - Credit WondersTrader as your data source
-2. **Link Back Required** - Include a visible link to [wonderstrader.com](https://wonderstrader.com)
-3. **Disclosure Required** - Clearly state that your content uses WondersTrader data
-   - Example: *"Data provided by WondersTrader"* or *"Powered by WondersTrader"*
+1. **Attribution Required** - Credit WondersTracker as your data source
+2. **Link Back Required** - Include a visible link to [wonderstracker.com](https://wonderstracker.com)
+3. **Disclosure Required** - Clearly state that your content uses WondersTracker data
+   - Example: *"Data provided by WondersTracker"* or *"Powered by WondersTracker"*
 
 > ⚠️ Failure to comply may result in API access revocation and other remedies. For commercial licensing, contact us.
 

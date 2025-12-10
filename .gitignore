@@ -50,6 +50,7 @@ pip-delete-this-directory.txt
 
 # Claude Code (may contain sensitive allowlist patterns)
 .claude/
+CLAUDE.local.md
 
 # Logs
 *.log
