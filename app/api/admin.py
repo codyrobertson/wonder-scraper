@@ -654,3 +654,15 @@ async def admin_reset_daily_counts(
         session.commit()
 
         return {"message": "Daily counts reset for all API keys", "keys_affected": result.rowcount}
+
+
+@router.get("/blocked-ips")
+async def admin_get_blocked_ips(
+    current_user: User = Depends(deps.get_current_superuser),
+):
+    """Get info about blocked IPs (admin only)."""
+    return {
+        "message": "Blocked IPs are stored in-memory per worker instance.",
+        "solution": "Redeploy the application to clear all blocks.",
+        "note": "The anti-scraping middleware now checks sec-fetch headers to allow browser requests.",
+    }
