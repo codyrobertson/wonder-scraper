@@ -4,7 +4,7 @@ import { analytics } from '~/services/analytics'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getSortedRowModel, SortingState, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { ArrowUpDown, Search, ArrowUp, ArrowDown, Calendar, TrendingUp, DollarSign, BarChart3, LayoutDashboard, ChevronLeft, ChevronRight, Plus, Package, Layers, Gem, Archive } from 'lucide-react'
+import { ArrowUpDown, Search, ArrowUp, ArrowDown, Calendar, TrendingUp, DollarSign, BarChart3, LayoutDashboard, ChevronLeft, ChevronRight, Plus, Package, Layers, Gem, Archive, Store, ShoppingCart } from 'lucide-react'
 import clsx from 'clsx'
 import { Tooltip } from '../components/ui/tooltip'
 import { SimpleDropdown } from '../components/ui/dropdown'
@@ -63,17 +63,62 @@ type UserProfile = {
     is_superuser: boolean
 }
 
+// Individual marketplace listing
+type Listing = {
+  id: number
+  card_id: number
+  card_name: string
+  card_slug?: string
+  product_type: string
+  title: string
+  price: number
+  platform: string
+  treatment?: string
+  listing_type: 'active' | 'sold'
+  condition?: string
+  bid_count?: number
+  seller_name?: string
+  seller_feedback_score?: number
+  seller_feedback_percent?: number
+  shipping_cost?: number
+  grading?: string
+  url?: string
+  image_url?: string
+  sold_date?: string
+  scraped_at?: string
+  listed_at?: string
+}
+
+type ListingsResponse = {
+  items: Listing[]
+  total: number
+  offset: number
+  limit: number
+  hasMore: boolean
+}
+
 export const Route = createFileRoute('/')({
   component: Home,
 })
+
+// Tab type for dashboard views
+type DashboardTab = 'products' | 'listings'
 
 function Home() {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume', desc: true }])
   const [globalFilter, setGlobalFilter] = useState('')
   const { timePeriod, setTimePeriod } = useTimePeriod()
   const [productType, setProductType] = useState<string>('all')
+  const [platform, setPlatform] = useState<string>('all')
   const [hideLowSignal, setHideLowSignal] = useState<boolean>(true)  // Hide low signal cards by default
   const [trackingCard, setTrackingCard] = useState<Card | null>(null)
+  const [activeTab, setActiveTab] = useState<DashboardTab>('products')
+  // Listings tab state
+  const [listingType, setListingType] = useState<string>('active')
+  const [listingPlatform, setListingPlatform] = useState<string>('all')
+  const [listingProductType, setListingProductType] = useState<string>('all')
+  const [listingTreatment, setListingTreatment] = useState<string>('all')
+  const [listingSearch, setListingSearch] = useState<string>('')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -103,12 +148,13 @@ function Home() {
 
 
   const { data: cards, isLoading } = useQuery({
-    queryKey: ['cards', timePeriod, productType],
+    queryKey: ['cards', timePeriod, productType, platform],
     queryFn: async () => {
       const typeParam = productType !== 'all' ? `&product_type=${productType}` : ''
+      const platformParam = platform !== 'all' ? `&platform=${platform}` : ''
       // Load all cards - important ones can be deep in the list
       // slim=true reduces payload by ~50% for faster loading
-      const data = await api.get(`cards?limit=500&time_period=${timePeriod}${typeParam}&slim=true`).json<Card[]>()
+      const data = await api.get(`cards?limit=500&time_period=${timePeriod}${typeParam}${platformParam}&slim=true`).json<Card[]>()
       return data.map(c => ({
           ...c,
           // Use new field names with fallback to deprecated for backwards compat
@@ -126,6 +172,25 @@ function Home() {
     gcTime: 30 * 60 * 1000, // 30 minutes - cache persists (renamed from cacheTime in v5)
     refetchOnWindowFocus: false, // Don't refetch on tab focus
     refetchOnMount: false, // Don't refetch on component mount if data exists
+  })
+
+  // Listings query for the Listings tab
+  const { data: listingsData, isLoading: listingsLoading } = useQuery({
+    queryKey: ['listings', listingType, listingPlatform, listingProductType, listingTreatment, listingSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      params.set('listing_type', listingType)
+      params.set('limit', '200')
+      if (listingPlatform !== 'all') params.set('platform', listingPlatform)
+      if (listingProductType !== 'all') params.set('product_type', listingProductType)
+      if (listingTreatment !== 'all') params.set('treatment', listingTreatment)
+      if (listingSearch) params.set('search', listingSearch)
+      const data = await api.get(`market/listings?${params.toString()}`).json<ListingsResponse>()
+      return data
+    },
+    enabled: activeTab === 'listings', // Only fetch when Listings tab is active
+    staleTime: 2 * 60 * 1000, // 2 minutes - listings change more frequently
+    refetchOnWindowFocus: false,
   })
 
   const columns = useMemo<ColumnDef<Card>[]>(() => [
@@ -491,151 +556,395 @@ function Home() {
         <div className="border border-border rounded bg-card overflow-hidden flex-1 flex flex-col">
             <div className="p-3 md:p-4 border-b border-border flex flex-col xl:flex-row xl:items-center justify-between bg-muted/20 gap-4">
                 <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8 w-full">
-                    <h2 className="text-sm font-bold uppercase tracking-wider flex items-center gap-2 shrink-0">
-                        <LayoutDashboard className="w-4 h-4 text-muted-foreground" />
-                        Wonders of the First
-                    </h2>
+                    {/* Dashboard Tabs */}
+                    <div className="flex items-center gap-1 shrink-0">
+                        <button
+                            onClick={() => setActiveTab('products')}
+                            className={clsx(
+                                "flex items-center gap-2 px-3 py-1.5 text-sm font-bold uppercase tracking-wider rounded-l border transition-colors",
+                                activeTab === 'products'
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
+                            )}
+                        >
+                            <Package className="w-4 h-4" />
+                            Products
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('listings')}
+                            className={clsx(
+                                "flex items-center gap-2 px-3 py-1.5 text-sm font-bold uppercase tracking-wider rounded-r border border-l-0 transition-colors",
+                                activeTab === 'listings'
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
+                            )}
+                        >
+                            <ShoppingCart className="w-4 h-4" />
+                            Listings
+                        </button>
+                    </div>
                     
-                    {/* Filters & Controls inside Header */}
-                    <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 md:gap-4 w-full">
-                        <div className="relative w-full flex-1">
-                             <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                 <input 
-                    type="text" 
-                                placeholder="SEARCH..." 
-                                className="w-full bg-background pl-9 pr-4 py-1.5 rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
-                    value={globalFilter}
-                    onChange={e => setGlobalFilter(e.target.value)}
-                 />
-            </div>
-            
-                        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-                            <SimpleDropdown
-                                value={productType}
-                                onChange={(value) => {
-                                    setProductType(value)
-                                    analytics.trackFilterApplied('product_type', value)
-                                }}
-                                options={[
-                                    { value: 'all', label: 'All Types' },
-                                    { value: 'Single', label: 'Singles' },
-                                    { value: 'Box', label: 'Boxes' },
-                                    { value: 'Pack', label: 'Packs' },
-                                    { value: 'Lot', label: 'Lots' },
-                                    { value: 'Proof', label: 'Proofs' },
-                                ]}
-                                size="sm"
-                                className="flex-1 sm:w-[110px]"
-                                triggerClassName="uppercase font-mono text-xs"
-                            />
+                    {/* Filters & Controls inside Header - conditional based on tab */}
+                    {activeTab === 'products' ? (
+                      <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 md:gap-4 w-full">
+                          <div className="relative w-full flex-1">
+                               <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                              <input
+                                  type="text"
+                                  placeholder="SEARCH..."
+                                  className="w-full bg-background pl-9 pr-4 py-1.5 rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                                  value={globalFilter}
+                                  onChange={e => setGlobalFilter(e.target.value)}
+                              />
+                          </div>
 
-                            <SimpleDropdown
-                                value={timePeriod}
-                                onChange={(value) => {
-                                    setTimePeriod(value)
-                                    analytics.trackFilterApplied('time_period', value)
-                                }}
-                                options={[
-                                    { value: '7d', label: '7 Days' },
-                                    { value: '30d', label: '30 Days' },
-                                    { value: '90d', label: '90 Days' },
-                                    { value: 'all', label: 'All Time' },
-                                ]}
-                                size="sm"
-                                className="flex-1 sm:w-[100px]"
-                                triggerClassName="uppercase font-mono text-xs"
-                            />
-            {/* Low Signal Filter */}
-            <Tooltip content="Hide cards with no confirmed sales (only asking prices)">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                        type="checkbox"
-                        checked={hideLowSignal}
-                        onChange={e => setHideLowSignal(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-border bg-background text-primary focus:ring-1 focus:ring-primary cursor-pointer"
-                    />
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">Hide Low Signal</span>
-                </label>
-            </Tooltip>
-        </div>
-        </div>
+                          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                              <SimpleDropdown
+                                  value={productType}
+                                  onChange={(value) => {
+                                      setProductType(value)
+                                      analytics.trackFilterApplied('product_type', value)
+                                  }}
+                                  options={[
+                                      { value: 'all', label: 'All Types' },
+                                      { value: 'Single', label: 'Singles' },
+                                      { value: 'Box', label: 'Boxes' },
+                                      { value: 'Pack', label: 'Packs' },
+                                      { value: 'Lot', label: 'Lots' },
+                                      { value: 'Proof', label: 'Proofs' },
+                                  ]}
+                                  size="sm"
+                                  className="flex-1 sm:w-[110px]"
+                                  triggerClassName="uppercase font-mono text-xs"
+                              />
+
+                              <SimpleDropdown
+                                  value={platform}
+                                  onChange={(value) => {
+                                      setPlatform(value)
+                                      analytics.trackFilterApplied('platform', value)
+                                  }}
+                                  options={[
+                                      { value: 'all', label: 'All Platforms' },
+                                      { value: 'ebay', label: 'eBay' },
+                                      { value: 'blokpax', label: 'Blokpax' },
+                                      { value: 'opensea', label: 'OpenSea' },
+                                  ]}
+                                  size="sm"
+                                  className="flex-1 sm:w-[120px]"
+                                  triggerClassName="uppercase font-mono text-xs"
+                              />
+
+                              <SimpleDropdown
+                                  value={timePeriod}
+                                  onChange={(value) => {
+                                      setTimePeriod(value)
+                                      analytics.trackFilterApplied('time_period', value)
+                                  }}
+                                  options={[
+                                      { value: '7d', label: '7 Days' },
+                                      { value: '30d', label: '30 Days' },
+                                      { value: '90d', label: '90 Days' },
+                                      { value: 'all', label: 'All Time' },
+                                  ]}
+                                  size="sm"
+                                  className="flex-1 sm:w-[100px]"
+                                  triggerClassName="uppercase font-mono text-xs"
+                              />
+                              {/* Low Signal Filter */}
+                              <Tooltip content="Hide cards with no confirmed sales (only asking prices)">
+                                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                                      <input
+                                          type="checkbox"
+                                          checked={hideLowSignal}
+                                          onChange={e => setHideLowSignal(e.target.checked)}
+                                          className="w-3.5 h-3.5 rounded border-border bg-background text-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                                      />
+                                      <span className="text-xs text-muted-foreground whitespace-nowrap">Hide Low Signal</span>
+                                  </label>
+                              </Tooltip>
+                          </div>
+                      </div>
+                    ) : (
+                      /* Listings tab filters */
+                      <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 md:gap-4 w-full">
+                          <div className="relative w-full flex-1">
+                               <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                              <input
+                                  type="text"
+                                  placeholder="SEARCH LISTINGS..."
+                                  className="w-full bg-background pl-9 pr-4 py-1.5 rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                                  value={listingSearch}
+                                  onChange={e => setListingSearch(e.target.value)}
+                              />
+                          </div>
+
+                          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 flex-wrap">
+                              <SimpleDropdown
+                                  value={listingType}
+                                  onChange={(value) => {
+                                      setListingType(value)
+                                      analytics.trackFilterApplied('listing_type', value)
+                                  }}
+                                  options={[
+                                      { value: 'active', label: 'Active' },
+                                      { value: 'sold', label: 'Sold' },
+                                      { value: 'all', label: 'All' },
+                                  ]}
+                                  size="sm"
+                                  className="flex-1 sm:w-[90px]"
+                                  triggerClassName="uppercase font-mono text-xs"
+                              />
+
+                              <SimpleDropdown
+                                  value={listingPlatform}
+                                  onChange={(value) => {
+                                      setListingPlatform(value)
+                                      analytics.trackFilterApplied('listing_platform', value)
+                                  }}
+                                  options={[
+                                      { value: 'all', label: 'All Platforms' },
+                                      { value: 'ebay', label: 'eBay' },
+                                      { value: 'blokpax', label: 'Blokpax' },
+                                      { value: 'opensea', label: 'OpenSea' },
+                                  ]}
+                                  size="sm"
+                                  className="flex-1 sm:w-[120px]"
+                                  triggerClassName="uppercase font-mono text-xs"
+                              />
+
+                              <SimpleDropdown
+                                  value={listingProductType}
+                                  onChange={(value) => {
+                                      setListingProductType(value)
+                                      analytics.trackFilterApplied('listing_product_type', value)
+                                  }}
+                                  options={[
+                                      { value: 'all', label: 'All Types' },
+                                      { value: 'Single', label: 'Singles' },
+                                      { value: 'Box', label: 'Boxes' },
+                                      { value: 'Pack', label: 'Packs' },
+                                  ]}
+                                  size="sm"
+                                  className="flex-1 sm:w-[100px]"
+                                  triggerClassName="uppercase font-mono text-xs"
+                              />
+
+                              <SimpleDropdown
+                                  value={listingTreatment}
+                                  onChange={(value) => {
+                                      setListingTreatment(value)
+                                      analytics.trackFilterApplied('listing_treatment', value)
+                                  }}
+                                  options={[
+                                      { value: 'all', label: 'All Treatments' },
+                                      { value: 'Classic Paper', label: 'Classic Paper' },
+                                      { value: 'Classic Foil', label: 'Classic Foil' },
+                                      { value: 'Foil', label: 'Foil' },
+                                  ]}
+                                  size="sm"
+                                  className="flex-1 sm:w-[130px]"
+                                  triggerClassName="uppercase font-mono text-xs"
+                              />
+                          </div>
+                      </div>
+                    )}
       </div>
 
                 <div className="text-xs text-muted-foreground font-mono hidden xl:block shrink-0">
-                    Showing {filteredCards.length} of {cards?.length || 0} assets
+                    {activeTab === 'products'
+                      ? `Showing ${filteredCards.length} of ${cards?.length || 0} assets`
+                      : `Showing ${listingsData?.items.length || 0} of ${listingsData?.total || 0} listings`
+                    }
                 </div>
         </div>
-                {isLoading ? (
-                    <div className="p-12 text-center">
-                        <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-                        <div className="text-xs uppercase text-muted-foreground animate-pulse">Loading market stream...</div>
-                    </div>
+                {/* Tab Content - Products or Listings */}
+                {activeTab === 'products' ? (
+                  /* Products Tab Content */
+                  isLoading ? (
+                      <div className="p-12 text-center">
+                          <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                          <div className="text-xs uppercase text-muted-foreground animate-pulse">Loading market stream...</div>
+                      </div>
+                  ) : (
+                      <>
+                          <div className="overflow-auto flex-1">
+                              <table className="w-full text-sm text-left">
+                                  <thead className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border sticky top-0 z-10">
+                                      {table.getHeaderGroups().map(headerGroup => (
+                                          <tr key={headerGroup.id}>
+                                              {headerGroup.headers.map(header => (
+                                              <th key={header.id} className="px-2 py-1.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30">
+                                                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                                  </th>
+                                              ))}
+                                          </tr>
+                                      ))}
+                                  </thead>
+                                  <tbody className="divide-y divide-border/50">
+                                      {table.getRowModel().rows?.length ? (
+                                          table.getRowModel().rows.map(row => (
+                                              <tr
+                                                  key={row.id}
+                                                  className="hover:bg-muted/30 transition-colors cursor-pointer group"
+                                                  onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: row.original.slug || String(row.original.id) } })}
+                                              >
+                                                  {row.getVisibleCells().map(cell => (
+                                                  <td key={cell.id} className="px-2 py-1.5 whitespace-nowrap">
+                                                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                      </td>
+                                                  ))}
+                                              </tr>
+                                          ))
+                                      ) : (
+                                          <tr>
+                                              <td colSpan={columns.length} className="h-32 text-center text-muted-foreground text-xs uppercase">
+                                                  No market data found.
+                                              </td>
+                                          </tr>
+                                      )}
+                                  </tbody>
+                              </table>
+                          </div>
+                          {/* Pagination */}
+                          <div className="border-t border-border px-3 py-2 flex items-center justify-between bg-muted/20">
+                              <div className="text-xs text-muted-foreground">
+                                  Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to {Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, table.getFilteredRowModel().rows.length)} of {table.getFilteredRowModel().rows.length} assets
+                              </div>
+                              <div className="flex items-center gap-2">
+                                  <button
+                                      onClick={() => table.previousPage()}
+                                      disabled={!table.getCanPreviousPage()}
+                                      className="px-3 py-1.5 text-xs font-bold uppercase border border-border rounded hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                      <ChevronLeft className="w-3.5 h-3.5" />
+                                  </button>
+                                  <div className="text-xs font-mono">
+                                      Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+                                  </div>
+                                  <button
+                                      onClick={() => table.nextPage()}
+                                      disabled={!table.getCanNextPage()}
+                                      className="px-3 py-1.5 text-xs font-bold uppercase border border-border rounded hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                      <ChevronRight className="w-3.5 h-3.5" />
+                                  </button>
+                              </div>
+                          </div>
+                      </>
+                  )
                 ) : (
-                    <>
-                        <div className="overflow-auto flex-1">
-                            <table className="w-full text-sm text-left">
-                                <thead className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border sticky top-0 z-10">
-                                    {table.getHeaderGroups().map(headerGroup => (
-                                        <tr key={headerGroup.id}>
-                                            {headerGroup.headers.map(header => (
-                                            <th key={header.id} className="px-2 py-1.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30">
-                                                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </thead>
-                                <tbody className="divide-y divide-border/50">
-                                    {table.getRowModel().rows?.length ? (
-                                        table.getRowModel().rows.map(row => (
-                                            <tr
-                                                key={row.id}
-                                                className="hover:bg-muted/30 transition-colors cursor-pointer group"
-                                                onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: row.original.slug || String(row.original.id) } })}
-                                            >
-                                                {row.getVisibleCells().map(cell => (
-                                                <td key={cell.id} className="px-2 py-1.5 whitespace-nowrap">
-                                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan={columns.length} className="h-32 text-center text-muted-foreground text-xs uppercase">
-                                                No market data found.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                        {/* Pagination */}
-                        <div className="border-t border-border px-3 py-2 flex items-center justify-between bg-muted/20">
-                            <div className="text-xs text-muted-foreground">
-                                Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to {Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, table.getFilteredRowModel().rows.length)} of {table.getFilteredRowModel().rows.length} assets
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => table.previousPage()}
-                                    disabled={!table.getCanPreviousPage()}
-                                    className="px-3 py-1.5 text-xs font-bold uppercase border border-border rounded hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <ChevronLeft className="w-3.5 h-3.5" />
-                                </button>
-                                <div className="text-xs font-mono">
-                                    Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-                                </div>
-                                <button
-                                    onClick={() => table.nextPage()}
-                                    disabled={!table.getCanNextPage()}
-                                    className="px-3 py-1.5 text-xs font-bold uppercase border border-border rounded hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <ChevronRight className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        </div>
-                    </>
+                  /* Listings Tab Content */
+                  listingsLoading ? (
+                      <div className="p-12 text-center">
+                          <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                          <div className="text-xs uppercase text-muted-foreground animate-pulse">Loading listings...</div>
+                      </div>
+                  ) : (
+                      <>
+                          <div className="overflow-auto flex-1">
+                              <table className="w-full text-sm text-left">
+                                  <thead className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border sticky top-0 z-10">
+                                      <tr>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30">Card</th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30">Listing</th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 text-right">Price</th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 hidden md:table-cell">Platform</th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 hidden lg:table-cell">Treatment</th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 hidden lg:table-cell">Seller</th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 text-center">Link</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/50">
+                                      {listingsData?.items.length ? (
+                                          listingsData.items.map(listing => (
+                                              <tr
+                                                  key={listing.id}
+                                                  className="hover:bg-muted/30 transition-colors"
+                                              >
+                                                  <td className="px-2 py-1.5">
+                                                      <button
+                                                          onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: listing.card_slug || String(listing.card_id) } })}
+                                                          className="text-left hover:text-primary transition-colors"
+                                                      >
+                                                          <div className="font-bold text-sm truncate max-w-[150px]">{listing.card_name}</div>
+                                                          <div className="text-[10px] text-muted-foreground uppercase">{listing.product_type}</div>
+                                                      </button>
+                                                  </td>
+                                                  <td className="px-2 py-1.5">
+                                                      <Tooltip content={listing.title}>
+                                                          <div className="text-xs truncate max-w-[200px]">{listing.title}</div>
+                                                      </Tooltip>
+                                                      {listing.listing_type === 'sold' && listing.sold_date && (
+                                                          <div className="text-[10px] text-muted-foreground">
+                                                              Sold {new Date(listing.sold_date).toLocaleDateString()}
+                                                          </div>
+                                                      )}
+                                                  </td>
+                                                  <td className="px-2 py-1.5 text-right">
+                                                      <div className="font-mono text-sm font-bold">${listing.price.toFixed(2)}</div>
+                                                      {listing.shipping_cost !== null && listing.shipping_cost !== undefined && (
+                                                          <div className="text-[10px] text-muted-foreground">
+                                                              {listing.shipping_cost === 0 ? 'Free Ship' : `+$${listing.shipping_cost.toFixed(2)}`}
+                                                          </div>
+                                                      )}
+                                                  </td>
+                                                  <td className="px-2 py-1.5 hidden md:table-cell">
+                                                      <span className={clsx(
+                                                          "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded",
+                                                          listing.platform === 'ebay' ? 'bg-blue-500/20 text-blue-400' :
+                                                          listing.platform === 'blokpax' ? 'bg-purple-500/20 text-purple-400' :
+                                                          listing.platform === 'opensea' ? 'bg-cyan-500/20 text-cyan-400' :
+                                                          'bg-muted text-muted-foreground'
+                                                      )}>
+                                                          {listing.platform}
+                                                      </span>
+                                                  </td>
+                                                  <td className="px-2 py-1.5 hidden lg:table-cell">
+                                                      <div className="text-xs truncate max-w-[100px]">{listing.treatment || '-'}</div>
+                                                  </td>
+                                                  <td className="px-2 py-1.5 hidden lg:table-cell">
+                                                      <div className="text-xs truncate max-w-[100px]">{listing.seller_name || '-'}</div>
+                                                      {listing.seller_feedback_percent && (
+                                                          <div className="text-[10px] text-muted-foreground">{listing.seller_feedback_percent}%</div>
+                                                      )}
+                                                  </td>
+                                                  <td className="px-2 py-1.5 text-center">
+                                                      {listing.url && (
+                                                          <a
+                                                              href={listing.url}
+                                                              target="_blank"
+                                                              rel="noopener noreferrer"
+                                                              onClick={(e) => {
+                                                                  e.stopPropagation()
+                                                                  analytics.trackExternalLinkClick(listing.platform, listing.card_id, listing.title)
+                                                              }}
+                                                              className="text-xs text-primary hover:underline"
+                                                          >
+                                                              View →
+                                                          </a>
+                                                      )}
+                                                  </td>
+                                              </tr>
+                                          ))
+                                      ) : (
+                                          <tr>
+                                              <td colSpan={7} className="h-32 text-center text-muted-foreground text-xs uppercase">
+                                                  No listings found.
+                                              </td>
+                                          </tr>
+                                      )}
+                                  </tbody>
+                              </table>
+                          </div>
+                          {/* Listings count footer */}
+                          <div className="border-t border-border px-3 py-2 flex items-center justify-between bg-muted/20">
+                              <div className="text-xs text-muted-foreground">
+                                  Showing {listingsData?.items.length || 0} of {listingsData?.total || 0} listings
+                              </div>
+                          </div>
+                      </>
+                  )
                 )}
         </div>
       </div>

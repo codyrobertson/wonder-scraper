@@ -312,6 +312,121 @@ def read_market_activity(
     return activity_data
 
 
+@router.get("/listings")
+def read_market_listings(
+    session: Session = Depends(get_session),
+    listing_type: Optional[str] = Query(default="active", description="Filter by listing type: active, sold, or all"),
+    platform: Optional[str] = Query(default=None, description="Filter by platform: ebay, blokpax"),
+    product_type: Optional[str] = Query(default=None, description="Filter by product type: Single, Box, Pack"),
+    treatment: Optional[str] = Query(default=None, description="Filter by treatment: Classic Paper, Foil, etc."),
+    min_price: Optional[float] = Query(default=None, ge=0, description="Minimum price filter"),
+    max_price: Optional[float] = Query(default=None, description="Maximum price filter"),
+    search: Optional[str] = Query(default=None, description="Search by listing title or card name"),
+    sort_by: Optional[str] = Query(default="scraped_at", description="Sort by: price, scraped_at, sold_date"),
+    sort_order: Optional[str] = Query(default="desc", description="Sort order: asc or desc"),
+    limit: int = Query(default=100, ge=1, le=500, description="Items per page"),
+    offset: int = Query(default=0, ge=0, description="Offset for pagination"),
+) -> Any:
+    """
+    Get marketplace listings across all cards with comprehensive filtering.
+    Returns individual listings from MarketPrice table with card details.
+    """
+    from sqlalchemy import func, or_
+    from app.models.market import MarketPrice
+
+    # Build base query with join to Card for product info
+    query = select(MarketPrice, Card.name, Card.slug, Card.product_type).join(Card, MarketPrice.card_id == Card.id)
+
+    # Apply listing type filter
+    if listing_type and listing_type != "all":
+        query = query.where(MarketPrice.listing_type == listing_type)
+
+    # Apply platform filter
+    if platform:
+        query = query.where(MarketPrice.platform == platform)
+
+    # Apply product type filter (on Card)
+    if product_type:
+        query = query.where(Card.product_type.ilike(product_type))
+
+    # Apply treatment filter
+    if treatment:
+        query = query.where(MarketPrice.treatment.ilike(f"%{treatment}%"))
+
+    # Apply price range filters
+    if min_price is not None:
+        query = query.where(MarketPrice.price >= min_price)
+    if max_price is not None:
+        query = query.where(MarketPrice.price <= max_price)
+
+    # Apply search filter
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.where(
+            or_(
+                MarketPrice.title.ilike(search_pattern),
+                Card.name.ilike(search_pattern),
+            )
+        )
+
+    # Get total count before pagination
+    count_query = select(func.count()).select_from(query.subquery())
+    total = session.exec(count_query).one()
+
+    # Apply sorting
+    sort_column = {
+        "price": MarketPrice.price,
+        "scraped_at": MarketPrice.scraped_at,
+        "sold_date": func.coalesce(MarketPrice.sold_date, MarketPrice.scraped_at),
+    }.get(sort_by, MarketPrice.scraped_at)
+
+    if sort_order == "asc":
+        query = query.order_by(sort_column)
+    else:
+        query = query.order_by(desc(sort_column))
+
+    # Apply pagination
+    query = query.offset(offset).limit(limit)
+
+    results = session.exec(query).all()
+
+    # Format results
+    listings = []
+    for listing, card_name, card_slug, card_product_type in results:
+        listings.append({
+            "id": listing.id,
+            "card_id": listing.card_id,
+            "card_name": card_name,
+            "card_slug": card_slug,
+            "product_type": card_product_type or "Single",
+            "title": listing.title,
+            "price": listing.price,
+            "platform": listing.platform,
+            "treatment": listing.treatment,
+            "listing_type": listing.listing_type,
+            "condition": listing.condition,
+            "bid_count": listing.bid_count,
+            "seller_name": listing.seller_name,
+            "seller_feedback_score": listing.seller_feedback_score,
+            "seller_feedback_percent": listing.seller_feedback_percent,
+            "shipping_cost": listing.shipping_cost,
+            "grading": listing.grading,
+            "url": listing.url,
+            "image_url": listing.image_url,
+            "sold_date": listing.sold_date.isoformat() if listing.sold_date else None,
+            "scraped_at": listing.scraped_at.isoformat() if listing.scraped_at else None,
+            "listed_at": listing.listed_at.isoformat() if listing.listed_at else None,
+        })
+
+    return {
+        "items": listings,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "hasMore": offset + len(listings) < total,
+    }
+
+
 # ============== LISTING REPORTS ==============
 
 from pydantic import BaseModel

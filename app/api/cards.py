@@ -48,6 +48,7 @@ def read_cards(
     search: Optional[str] = None,
     time_period: Optional[str] = Query(default="7d", pattern="^(24h|7d|30d|90d|all)$"),
     product_type: Optional[str] = Query(default=None, description="Filter by product type (e.g., Single, Box, Pack)"),
+    platform: Optional[str] = Query(default=None, description="Filter by platform (ebay, blokpax)"),
     include_total: bool = Query(default=False, description="Include total count (slower)"),
     slim: bool = Query(default=False, description="Return lightweight payload (~50% smaller)"),
 ) -> Any:
@@ -57,14 +58,15 @@ def read_cards(
     Returns paginated response with {items, total?, hasMore} when include_total=true.
     Use slim=true for ~50% smaller payload (recommended for list views).
     """
-    # Check cache first (v14 = slim mode support)
+    # Check cache first (v15 = platform filter support)
     cache_key = get_cache_key(
-        "cards_v14",
+        "cards_v15",
         skip=skip,
         limit=limit,
         search=search or "",
         time_period=time_period,
         product_type=product_type or "",
+        platform=platform or "",
         include_total=include_total,
         slim=slim,
     )
@@ -142,6 +144,12 @@ def read_cards(
     floor_price_map = {}  # Floor price (avg of 4 lowest sales)
     volume_map = {}  # Volume filtered by time period
 
+    # Build platform filter clause for SQL queries
+    platform_clause = "AND platform = :platform" if platform else ""
+    query_params_base = {"card_ids": card_ids}
+    if platform:
+        query_params_base["platform"] = platform
+
     if card_ids:
         try:
             from sqlalchemy import text
@@ -149,49 +157,54 @@ def read_cards(
             # Use parameterized queries to prevent SQL injection
             # PostgreSQL ANY() syntax for array parameters
             # Use COALESCE(sold_date, scraped_at) to include sales with NULL sold_date
-            query = text("""
+            query = text(f"""
                 SELECT DISTINCT ON (card_id) card_id, price, treatment
                 FROM marketprice
                 WHERE card_id = ANY(:card_ids)
                 AND listing_type = 'sold'
+                {platform_clause}
                 ORDER BY card_id, COALESCE(sold_date, scraped_at) DESC
             """)
-            results = session.execute(query, {"card_ids": card_ids}).all()
+            results = session.execute(query, query_params_base).all()
             last_sale_map = {row[0]: {"price": row[1], "treatment": row[2]} for row in results}
 
             # Calculate AVG price (commonly called VWAP for single-item sales)
             # Use COALESCE(sold_date, scraped_at) for consistent time filtering
             if cutoff_time:
-                vwap_query = text("""
+                vwap_query = text(f"""
                     SELECT card_id, AVG(price) as vwap
                     FROM marketprice
                     WHERE card_id = ANY(:card_ids)
                     AND listing_type = 'sold'
                     AND COALESCE(sold_date, scraped_at) >= :cutoff_time
+                    {platform_clause}
                     GROUP BY card_id
                 """)
-                vwap_results = session.execute(vwap_query, {"card_ids": card_ids, "cutoff_time": cutoff_time}).all()
+                vwap_params = {**query_params_base, "cutoff_time": cutoff_time}
+                vwap_results = session.execute(vwap_query, vwap_params).all()
             else:
-                vwap_query = text("""
+                vwap_query = text(f"""
                     SELECT card_id, AVG(price) as vwap
                     FROM marketprice
                     WHERE card_id = ANY(:card_ids)
                     AND listing_type = 'sold'
+                    {platform_clause}
                     GROUP BY card_id
                 """)
-                vwap_results = session.execute(vwap_query, {"card_ids": card_ids}).all()
+                vwap_results = session.execute(vwap_query, query_params_base).all()
             vwap_map = {row[0]: round(float(row[1]), 2) if row[1] else None for row in vwap_results}
 
             # Fetch LIVE active listing stats (lowest_ask, inventory) from MarketPrice
             # This ensures fresh data even when snapshots are stale
-            active_stats_query = text("""
+            active_stats_query = text(f"""
                 SELECT card_id, MIN(price) as lowest_ask, COUNT(*) as inventory
                 FROM marketprice
                 WHERE card_id = ANY(:card_ids)
                 AND listing_type = 'active'
+                {platform_clause}
                 GROUP BY card_id
             """)
-            active_stats_results = session.execute(active_stats_query, {"card_ids": card_ids}).all()
+            active_stats_results = session.execute(active_stats_query, query_params_base).all()
             active_stats_map = {row[0]: {"lowest_ask": row[1], "inventory": row[2]} for row in active_stats_results}
 
             # Batch calculate floor prices (avg of up to 4 lowest sales)
@@ -200,7 +213,9 @@ def read_cards(
             # Use COALESCE(sold_date, scraped_at) as fallback when sold_date is NULL
 
             # Query for base treatments only
-            base_floor_query = text("""
+            # Note: platform filter applied via string formatting since it's optional
+            platform_filter_sql = f"AND platform = '{platform}'" if platform else ""
+            base_floor_query = text(f"""
                 SELECT card_id, AVG(price) as floor_price
                 FROM (
                     SELECT card_id, price,
@@ -211,6 +226,7 @@ def read_cards(
                       AND listing_type = 'sold'
                       AND treatment IN ('Classic Paper', 'Classic Foil')
                       AND COALESCE(sold_date, scraped_at) >= :cutoff
+                      {platform_filter_sql}
                 ) ranked
                 WHERE rn <= LEAST(4, total_sales)
                 GROUP BY card_id
@@ -218,7 +234,7 @@ def read_cards(
 
             # Query for cheapest treatment per card (fallback)
             # Calculates floor per treatment, then picks the cheapest treatment's floor
-            cheapest_treatment_query = text("""
+            cheapest_treatment_query = text(f"""
                 SELECT DISTINCT ON (card_id) card_id, floor_price
                 FROM (
                     SELECT card_id, treatment, AVG(price) as floor_price
@@ -229,6 +245,7 @@ def read_cards(
                         WHERE card_id = ANY(:card_ids)
                           AND listing_type = 'sold'
                           AND COALESCE(sold_date, scraped_at) >= :cutoff
+                          {platform_filter_sql}
                     ) ranked
                     WHERE rn <= 4
                     GROUP BY card_id, treatment
@@ -272,25 +289,28 @@ def read_cards(
             # Calculate volume filtered by time period
             # Use COALESCE(sold_date, scraped_at) for consistent time filtering
             if cutoff_time:
-                volume_query = text("""
+                volume_query = text(f"""
                     SELECT card_id, COUNT(*) as volume
                     FROM marketprice
                     WHERE card_id = ANY(:card_ids)
                     AND listing_type = 'sold'
                     AND COALESCE(sold_date, scraped_at) >= :cutoff_time
+                    {platform_clause}
                     GROUP BY card_id
                 """)
-                volume_results = session.execute(volume_query, {"card_ids": card_ids, "cutoff_time": cutoff_time}).all()
+                vol_params = {**query_params_base, "cutoff_time": cutoff_time}
+                volume_results = session.execute(volume_query, vol_params).all()
             else:
                 # All time
-                volume_query = text("""
+                volume_query = text(f"""
                     SELECT card_id, COUNT(*) as volume
                     FROM marketprice
                     WHERE card_id = ANY(:card_ids)
                     AND listing_type = 'sold'
+                    {platform_clause}
                     GROUP BY card_id
                 """)
-                volume_results = session.execute(volume_query, {"card_ids": card_ids}).all()
+                volume_results = session.execute(volume_query, query_params_base).all()
             volume_map = {row[0]: row[1] for row in volume_results}
 
             # Fetch average price with conditional rolling window
@@ -302,25 +322,28 @@ def read_cards(
             for days, label in [(30, "30d"), (90, "90d"), (None, "all")]:
                 if days:
                     cutoff = datetime.utcnow() - timedelta(days=days)
-                    avg_query = text("""
+                    avg_query = text(f"""
                         SELECT card_id, AVG(price) as avg_price
                         FROM marketprice
                         WHERE card_id = ANY(:card_ids)
                         AND listing_type = 'sold'
                         AND COALESCE(sold_date, scraped_at) >= :cutoff
+                        {platform_clause}
                         GROUP BY card_id
                     """)
-                    results = session.execute(avg_query, {"card_ids": card_ids, "cutoff": cutoff}).all()
+                    avg_params = {**query_params_base, "cutoff": cutoff}
+                    results = session.execute(avg_query, avg_params).all()
                 else:
                     # All-time average
-                    avg_query = text("""
+                    avg_query = text(f"""
                         SELECT card_id, AVG(price) as avg_price
                         FROM marketprice
                         WHERE card_id = ANY(:card_ids)
                         AND listing_type = 'sold'
+                        {platform_clause}
                         GROUP BY card_id
                     """)
-                    results = session.execute(avg_query, {"card_ids": card_ids}).all()
+                    results = session.execute(avg_query, query_params_base).all()
 
                 # Only add cards not already in map (prefer shorter windows)
                 for row in results:
