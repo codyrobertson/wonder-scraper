@@ -51,7 +51,8 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 # Anti-scraping middleware - detects bots, headless browsers, rate limits
 # Protects /api/v1/cards, /api/v1/market, /api/v1/blokpax endpoints
-app.add_middleware(AntiScrapingMiddleware, enabled=True)
+# TEMPORARILY DISABLED - blocking legitimate browser requests
+app.add_middleware(AntiScrapingMiddleware, enabled=False)
 
 # API metering middleware - tracks usage for billing (only when SaaS enabled)
 # This is a no-op pass-through when saas/ module is not available
