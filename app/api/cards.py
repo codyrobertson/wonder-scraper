@@ -137,11 +137,16 @@ def read_cards(
     rarities = session.exec(select(Rarity)).all()
     rarity_map = {r.id: r.name for r in rarities}
 
+    # Build card_id -> product_type map for variant field selection
+    card_product_type_map = {c.id: (c.product_type if hasattr(c, "product_type") else "Single") for c in cards}
+
     # Batch fetch actual LAST SALE price (Postgres DISTINCT ON)
     last_sale_map = {}
     vwap_map = {}
     active_stats_map = {}  # Computed from MarketPrice for fresh lowest_ask/inventory
-    floor_price_map = {}  # Floor price (avg of 4 lowest sales)
+    floor_price_map = {}  # Floor price (avg of 4 lowest sales) - cheapest variant
+    floor_by_variant_map = {}  # Floor price per variant {card_id: {variant: price}}
+    lowest_ask_by_variant_map = {}  # Lowest ask per variant {card_id: {variant: price}}
     volume_map = {}  # Volume filtered by time period
 
     # Build platform filter clause for SQL queries
@@ -207,85 +212,107 @@ def read_cards(
             active_stats_results = session.execute(active_stats_query, query_params_base).all()
             active_stats_map = {row[0]: {"lowest_ask": row[1], "inventory": row[2]} for row in active_stats_results}
 
-            # Batch calculate floor prices (avg of up to 4 lowest sales)
-            # Prefers base treatments (Classic Paper/Classic Foil), falls back to
-            # cheapest available treatment for cards with only premium variants
+            # Batch calculate floor prices per variant (avg of up to 4 lowest sales)
+            # Unified approach: Singles use 'treatment', Sealed uses 'product_subtype'
             # Use COALESCE(sold_date, scraped_at) as fallback when sold_date is NULL
-
-            # Query for base treatments only
-            # Note: platform filter applied via string formatting since it's optional
             platform_filter_sql = f"AND platform = '{platform}'" if platform else ""
-            base_floor_query = text(f"""
-                SELECT card_id, AVG(price) as floor_price
+
+            # Query returns floor price for EACH variant (treatment or product_subtype)
+            # Singles: variant = treatment (Classic Paper, Classic Foil, etc.)
+            # Sealed: variant = product_subtype (Silver Pack, Collector Booster Pack, etc.)
+            floor_by_variant_query = text(f"""
+                SELECT card_id, variant, AVG(price) as floor_price
                 FROM (
-                    SELECT card_id, price,
-                           ROW_NUMBER() OVER (PARTITION BY card_id ORDER BY price ASC) as rn,
-                           COUNT(*) OVER (PARTITION BY card_id) as total_sales
+                    SELECT card_id,
+                           CASE
+                               WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                               THEN product_subtype
+                               ELSE treatment
+                           END as variant,
+                           price,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY card_id,
+                                   CASE
+                                       WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                                       THEN product_subtype
+                                       ELSE treatment
+                                   END
+                               ORDER BY price ASC
+                           ) as rn
                     FROM marketprice
                     WHERE card_id = ANY(:card_ids)
                       AND listing_type = 'sold'
-                      AND treatment IN ('Classic Paper', 'Classic Foil')
                       AND COALESCE(sold_date, scraped_at) >= :cutoff
                       {platform_filter_sql}
                 ) ranked
-                WHERE rn <= LEAST(4, total_sales)
-                GROUP BY card_id
-            """)
-
-            # Query for cheapest treatment per card (fallback)
-            # Calculates floor per treatment AND product_subtype, then picks the cheapest floor
-            # This prevents mixing different product types (e.g., regular packs vs silver packs)
-            cheapest_treatment_query = text(f"""
-                SELECT DISTINCT ON (card_id) card_id, floor_price
-                FROM (
-                    SELECT card_id, treatment, product_subtype, AVG(price) as floor_price
-                    FROM (
-                        SELECT card_id, treatment, product_subtype, price,
-                               ROW_NUMBER() OVER (PARTITION BY card_id, treatment, COALESCE(product_subtype, '') ORDER BY price ASC) as rn
-                        FROM marketprice
-                        WHERE card_id = ANY(:card_ids)
-                          AND listing_type = 'sold'
-                          AND COALESCE(sold_date, scraped_at) >= :cutoff
-                          {platform_filter_sql}
-                    ) ranked
-                    WHERE rn <= 4
-                    GROUP BY card_id, treatment, product_subtype
-                ) treatment_floors
+                WHERE rn <= 4
+                GROUP BY card_id, variant
                 ORDER BY card_id, floor_price ASC
             """)
 
-            # First try 30 days with base treatments
+            # Query for lowest ask per variant (active listings)
+            # Note: Must GROUP BY the full CASE expression, not the alias
+            lowest_ask_by_variant_query = text(f"""
+                SELECT card_id,
+                       CASE
+                           WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                           THEN product_subtype
+                           ELSE treatment
+                       END as variant,
+                       MIN(price) as lowest_ask
+                FROM marketprice
+                WHERE card_id = ANY(:card_ids)
+                  AND listing_type = 'active'
+                  {platform_filter_sql}
+                GROUP BY card_id,
+                         CASE
+                             WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                             THEN product_subtype
+                             ELSE treatment
+                         END
+                ORDER BY card_id, lowest_ask ASC
+            """)
+
+            # First try 30 days
             floor_cutoff_30d = datetime.utcnow() - timedelta(days=30)
-            floor_results = session.execute(base_floor_query, {"card_ids": card_ids, "cutoff": floor_cutoff_30d}).all()
-            floor_price_map = {row[0]: round(float(row[1]), 2) for row in floor_results}
+            floor_variant_results = session.execute(
+                floor_by_variant_query, {"card_ids": card_ids, "cutoff": floor_cutoff_30d}
+            ).all()
 
-            # Fallback 1: 30 days cheapest treatment for cards missing floor price
-            missing_floor_ids = [cid for cid in card_ids if cid not in floor_price_map]
-            if missing_floor_ids:
-                cheapest_results_30d = session.execute(
-                    cheapest_treatment_query, {"card_ids": missing_floor_ids, "cutoff": floor_cutoff_30d}
-                ).all()
-                for row in cheapest_results_30d:
-                    floor_price_map[row[0]] = round(float(row[1]), 2)
+            # Build floor_by_variant_map and floor_price_map (cheapest variant)
+            for row in floor_variant_results:
+                card_id, variant, floor_price = row[0], row[1], round(float(row[2]), 2)
+                if card_id not in floor_by_variant_map:
+                    floor_by_variant_map[card_id] = {}
+                floor_by_variant_map[card_id][variant] = floor_price
+                # floor_price_map stores the cheapest variant's floor
+                if card_id not in floor_price_map or floor_price < floor_price_map[card_id]:
+                    floor_price_map[card_id] = floor_price
 
-            # Fallback 2: 90 days base treatments for cards still missing
+            # Fallback: 90 days for cards still missing
             missing_floor_ids = [cid for cid in card_ids if cid not in floor_price_map]
             if missing_floor_ids:
                 floor_cutoff_90d = datetime.utcnow() - timedelta(days=90)
-                floor_results_90d = session.execute(
-                    base_floor_query, {"card_ids": missing_floor_ids, "cutoff": floor_cutoff_90d}
+                floor_variant_results_90d = session.execute(
+                    floor_by_variant_query, {"card_ids": missing_floor_ids, "cutoff": floor_cutoff_90d}
                 ).all()
-                for row in floor_results_90d:
-                    floor_price_map[row[0]] = round(float(row[1]), 2)
+                for row in floor_variant_results_90d:
+                    card_id, variant, floor_price = row[0], row[1], round(float(row[2]), 2)
+                    if card_id not in floor_by_variant_map:
+                        floor_by_variant_map[card_id] = {}
+                    floor_by_variant_map[card_id][variant] = floor_price
+                    if card_id not in floor_price_map or floor_price < floor_price_map[card_id]:
+                        floor_price_map[card_id] = floor_price
 
-            # Fallback 3: 90 days cheapest treatment for cards still missing
-            missing_floor_ids = [cid for cid in card_ids if cid not in floor_price_map]
-            if missing_floor_ids:
-                cheapest_results_90d = session.execute(
-                    cheapest_treatment_query, {"card_ids": missing_floor_ids, "cutoff": floor_cutoff_90d}
-                ).all()
-                for row in cheapest_results_90d:
-                    floor_price_map[row[0]] = round(float(row[1]), 2)
+            # Fetch lowest ask by variant (active listings)
+            lowest_ask_variant_results = session.execute(
+                lowest_ask_by_variant_query, {"card_ids": card_ids}
+            ).all()
+            for row in lowest_ask_variant_results:
+                card_id, variant, lowest_ask = row[0], row[1], round(float(row[2]), 2)
+                if card_id not in lowest_ask_by_variant_map:
+                    lowest_ask_by_variant_map[card_id] = {}
+                lowest_ask_by_variant_map[card_id][variant] = lowest_ask
 
             # Calculate volume filtered by time period
             # Use COALESCE(sold_date, scraped_at) for consistent time filtering
@@ -382,8 +409,12 @@ def read_cards(
         lowest_ask = live_lowest if live_lowest is not None else (latest_snap.lowest_ask if latest_snap else None)
         inventory = live_inv if live_inv is not None else (latest_snap.inventory if latest_snap else 0)
 
-        # Get floor price from batch calculation
+        # Get floor price from batch calculation (cheapest variant)
         card_floor_price = floor_price_map.get(card.id)
+
+        # Get floor_by_variant and lowest_ask_by_variant
+        card_floor_by_variant = floor_by_variant_map.get(card.id)
+        card_lowest_ask_by_variant = lowest_ask_by_variant_map.get(card.id)
 
         # Get volume filtered by time period
         card_volume = volume_map.get(card.id, 0)
@@ -408,9 +439,11 @@ def read_cards(
             product_type=card.product_type if hasattr(card, "product_type") else "Single",
             # Prices
             floor_price=card_floor_price,
+            floor_by_variant=card_floor_by_variant,
             vwap=card_vwap,
             latest_price=last_price,
             lowest_ask=lowest_ask,
+            lowest_ask_by_variant=card_lowest_ask_by_variant,
             max_price=latest_snap.max_price if latest_snap else None,
             avg_price=latest_snap.avg_price if latest_snap else None,
             fair_market_price=None,  # FMP only on detail page
@@ -642,6 +675,8 @@ def read_card(
     # Calculate Fair Market Price and Floor Price
     fair_market_price = None
     floor_price = None
+    floor_by_variant = None
+    lowest_ask_by_variant = None
     product_type = card.product_type if hasattr(card, "product_type") else "Single"
     try:
         pricing_service = FairMarketPriceService(session)
@@ -652,6 +687,79 @@ def read_card(
         floor_price = fmp_result.get("floor_price")
     except Exception as e:
         print(f"Error calculating FMP for card {card.id}: {e}")
+
+    # Calculate floor_by_variant and lowest_ask_by_variant for single card
+    try:
+        floor_cutoff = datetime.utcnow() - timedelta(days=30)
+
+        # Floor by variant query
+        floor_variant_query = text("""
+            SELECT variant, AVG(price) as floor_price
+            FROM (
+                SELECT
+                    CASE
+                        WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                        THEN product_subtype
+                        ELSE treatment
+                    END as variant,
+                    price,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY
+                            CASE
+                                WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                                THEN product_subtype
+                                ELSE treatment
+                            END
+                        ORDER BY price ASC
+                    ) as rn
+                FROM marketprice
+                WHERE card_id = :card_id
+                  AND listing_type = 'sold'
+                  AND COALESCE(sold_date, scraped_at) >= :cutoff
+            ) ranked
+            WHERE rn <= 4
+            GROUP BY variant
+            ORDER BY floor_price ASC
+        """)
+        floor_variant_results = session.execute(
+            floor_variant_query, {"card_id": card.id, "cutoff": floor_cutoff}
+        ).all()
+
+        if floor_variant_results:
+            floor_by_variant = {row[0]: round(float(row[1]), 2) for row in floor_variant_results}
+            # Update floor_price to be cheapest variant if FMP didn't provide one
+            if floor_price is None and floor_by_variant:
+                floor_price = min(floor_by_variant.values())
+
+        # Lowest ask by variant query
+        # Note: Must GROUP BY the full CASE expression, not the alias
+        lowest_ask_variant_query = text("""
+            SELECT
+                CASE
+                    WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                    THEN product_subtype
+                    ELSE treatment
+                END as variant,
+                MIN(price) as lowest_ask
+            FROM marketprice
+            WHERE card_id = :card_id
+              AND listing_type = 'active'
+            GROUP BY
+                CASE
+                    WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                    THEN product_subtype
+                    ELSE treatment
+                END
+            ORDER BY lowest_ask ASC
+        """)
+        lowest_ask_variant_results = session.execute(
+            lowest_ask_variant_query, {"card_id": card.id}
+        ).all()
+
+        if lowest_ask_variant_results:
+            lowest_ask_by_variant = {row[0]: round(float(row[1]), 2) for row in lowest_ask_variant_results}
+    except Exception as e:
+        print(f"Error calculating variant prices for card {card.id}: {e}")
 
     c_out = CardOut(
         id=card.id,
@@ -666,6 +774,7 @@ def read_card(
         last_sale_diff=sale_delta,  # Last sale vs current floor
         last_sale_treatment=real_treatment,
         lowest_ask=lowest_ask,
+        lowest_ask_by_variant=lowest_ask_by_variant,
         inventory=inventory,
         product_type=card.product_type if hasattr(card, "product_type") else "Single",
         max_price=latest_snap.max_price if latest_snap else None,
@@ -674,6 +783,7 @@ def read_card(
         last_updated=latest_snap.timestamp if latest_snap else None,
         fair_market_price=fair_market_price,
         floor_price=floor_price,
+        floor_by_variant=floor_by_variant,
     )
 
     # Cache result

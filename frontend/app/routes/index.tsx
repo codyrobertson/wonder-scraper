@@ -33,10 +33,12 @@ type Card = {
   product_type?: string // Single, Box, Pack, Bundle, Proof, Lot
 
   // === PRICES (clear hierarchy) ===
-  floor_price?: number // Avg of 4 lowest sales - THE standard price
+  floor_price?: number // Avg of 4 lowest sales - THE standard price (cheapest variant)
+  floor_by_variant?: Record<string, number> // Floor price per variant {treatment/subtype: price}
   vwap?: number // Volume Weighted Average Price = SUM(price)/COUNT
   latest_price?: number // Most recent sale price
-  lowest_ask?: number // Cheapest active listing
+  lowest_ask?: number // Cheapest active listing (cheapest variant)
+  lowest_ask_by_variant?: Record<string, number> // Lowest ask per variant {treatment/subtype: price}
   max_price?: number // Highest confirmed sale
   fair_market_price?: number // FMP calculated from formula
 
@@ -241,19 +243,19 @@ function Home() {
           : null
 
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
               <img
                   src={`https://byhenwreijyrx2ww.public.blob.vercel-storage.com/cards/${row.original.id}-thumb.webp`}
                   alt={row.getValue('name')}
-                  className="w-8 h-11 lg:w-10 lg:h-14 rounded object-cover bg-muted shrink-0"
+                  className="w-6 h-8 sm:w-8 sm:h-11 lg:w-10 lg:h-14 rounded object-cover bg-muted shrink-0"
                   onError={(e) => {
                       e.currentTarget.style.display = 'none'
                   }}
               />
-              <div className="max-w-[140px] md:max-w-none min-w-0">
-                  <div className="flex items-center gap-1.5">
+              <div className="max-w-[100px] sm:max-w-[140px] md:max-w-none min-w-0">
+                  <div className="flex items-center gap-1 sm:gap-1.5">
                     <Tooltip content={row.getValue('name')}>
-                        <span className="font-bold text-foreground truncate text-sm lg:text-base">{row.getValue('name')}</span>
+                        <span className="font-bold text-foreground truncate text-xs sm:text-sm lg:text-base">{row.getValue('name')}</span>
                     </Tooltip>
                     {isSingle && rarity && (
                       <Tooltip content={rarity}>
@@ -278,7 +280,7 @@ function Home() {
                       </Tooltip>
                     )}
                   </div>
-                  <div className="text-[10px] lg:text-xs text-muted-foreground/70 uppercase truncate">{row.original.set_name}</div>
+                  <div className="text-[9px] sm:text-[10px] lg:text-xs text-muted-foreground/70 uppercase truncate">{row.original.set_name}</div>
               </div>
           </div>
         )
@@ -304,19 +306,53 @@ function Home() {
           const floorPrice = row.original.floor_price || row.original.vwap
           const hasFloor = !!floorPrice && floorPrice > 0
           const delta = row.original.price_delta ?? row.original.price_delta_24h ?? 0
+
+          // Check for variant price range for sealed products
+          const floorByVariant = row.original.floor_by_variant
+          const askByVariant = row.original.lowest_ask_by_variant
+          const variantCount = Object.keys(floorByVariant || {}).length + Object.keys(askByVariant || {}).length
+          const hasMultipleVariants = variantCount > 1 || (row.original.product_type && row.original.product_type !== 'Single' && variantCount > 0)
+
+          // Get price range if multiple variants
+          let priceRange = ''
+          if (hasMultipleVariants) {
+              const allPrices = [
+                  ...Object.values(floorByVariant || {}),
+                  ...Object.values(askByVariant || {})
+              ].filter(p => p > 0)
+              if (allPrices.length > 1) {
+                  const min = Math.min(...allPrices)
+                  const max = Math.max(...allPrices)
+                  if (min !== max) {
+                      priceRange = `$${min.toFixed(0)}-$${max.toFixed(0)}`
+                  }
+              }
+          }
+
           return (
-            <div className="inline-flex items-center gap-2">
-                <span className="font-mono text-sm lg:text-base">
-                    {hasFloor ? `$${floorPrice.toFixed(2)}` : '---'}
-                </span>
-                {hasFloor && delta !== 0 && (
-                    <span className={clsx(
-                        "text-[10px] lg:text-xs font-mono px-1 py-0.5 rounded",
-                        delta > 0 ? "text-brand-300 bg-brand-300/10" :
-                        "text-red-400 bg-red-500/10"
-                    )}>
-                        {delta > 0 ? '↑' : '↓'}{Math.abs(delta).toFixed(1)}%
+            <div className="inline-flex flex-col items-center gap-0.5">
+                <div className="inline-flex items-center gap-1 md:gap-2">
+                    <span className="font-mono text-sm lg:text-base">
+                        {hasFloor ? `$${floorPrice.toFixed(2)}` : '---'}
                     </span>
+                    {/* Hide delta badge on mobile to save space */}
+                    {hasFloor && delta !== 0 && (
+                        <span className={clsx(
+                            "hidden sm:inline text-[10px] lg:text-xs font-mono px-1 py-0.5 rounded",
+                            delta > 0 ? "text-brand-300 bg-brand-300/10" :
+                            "text-red-400 bg-red-500/10"
+                        )}>
+                            {delta > 0 ? '↑' : '↓'}{Math.abs(delta).toFixed(1)}%
+                        </span>
+                    )}
+                </div>
+                {/* Hide price range on mobile */}
+                {priceRange && (
+                    <Tooltip content="Price range across variants - click for breakdown">
+                        <span className="hidden sm:inline text-[9px] text-muted-foreground font-mono">
+                            {priceRange}
+                        </span>
+                    </Tooltip>
                 )}
             </div>
           )
@@ -364,9 +400,10 @@ function Home() {
             return (
                 <div className="flex items-center justify-center gap-1 font-mono text-sm lg:text-base">
                     <span>{vol}</span>
+                    {/* Hide chevrons on mobile to save space */}
                     {chevrons && (
                         <Tooltip content={chevronTooltip}>
-                            <span className={clsx("text-[10px] lg:text-xs", colorClass)}>{chevrons}</span>
+                            <span className={clsx("hidden sm:inline text-[10px] lg:text-xs", colorClass)}>{chevrons}</span>
                         </Tooltip>
                     )}
                 </div>
@@ -395,9 +432,10 @@ function Home() {
             return (
                 <div className="text-center">
                     <div className="font-mono text-sm lg:text-base">{price > 0 ? `$${price.toFixed(2)}` : '---'}</div>
+                    {/* Hide treatment on mobile to save space */}
                     {treatment && (
                         <Tooltip content={rawTreatment}>
-                            <div className="text-[9px] lg:text-[11px] text-muted-foreground truncate">
+                            <div className="hidden sm:block text-[9px] lg:text-[11px] text-muted-foreground truncate">
                                 {treatment}
                             </div>
                         </Tooltip>
@@ -823,8 +861,8 @@ function Home() {
                       </div>
                   ) : (
                       <>
-                          <div className="overflow-auto flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
-                              <table className="w-full text-sm text-left">
+                          <div className="overflow-x-auto flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+                              <table className="w-full text-sm text-left min-w-[480px]">
                                   <thead className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border sticky top-0 z-10">
                                       {table.getHeaderGroups().map(headerGroup => (
                                           <tr key={headerGroup.id}>
@@ -832,7 +870,7 @@ function Home() {
                                               const align = (header.column.columnDef.meta as { align?: string })?.align || 'left'
                                               return (
                                               <th key={header.id} className={clsx(
-                                                  "px-2 py-1.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30",
+                                                  "px-1 sm:px-2 py-1 sm:py-1.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30",
                                                   align === 'center' && 'text-center',
                                                   align === 'right' && 'text-right'
                                               )}>
@@ -855,7 +893,7 @@ function Home() {
                                                       const align = (cell.column.columnDef.meta as { align?: string })?.align || 'left'
                                                       return (
                                                   <td key={cell.id} className={clsx(
-                                                      "px-2 py-1.5 whitespace-nowrap",
+                                                      "px-1 sm:px-2 py-1 sm:py-1.5 whitespace-nowrap",
                                                       align === 'center' && 'text-center',
                                                       align === 'right' && 'text-right'
                                                   )}>
@@ -911,8 +949,8 @@ function Home() {
                       </div>
                   ) : (
                       <>
-                          <div className="overflow-auto flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
-                              <table className="w-full text-sm text-left">
+                          <div className="overflow-x-auto flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+                              <table className="w-full text-sm text-left min-w-[400px]">
                                   <thead className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border sticky top-0 z-10">
                                       <tr>
                                           <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30">Card</th>

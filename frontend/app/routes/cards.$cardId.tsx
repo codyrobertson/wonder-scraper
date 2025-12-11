@@ -27,10 +27,12 @@ type CardDetail = {
   volume_30d?: number
   price_delta_24h?: number
   lowest_ask?: number
+  lowest_ask_by_variant?: Record<string, number> // Lowest ask per variant {treatment/subtype: price}
   inventory?: number
   max_price?: number // Added max_price type
   product_type?: string // Single, Box, Pack, Proof, etc.
-  floor_price?: number // Avg of 4 lowest sales (30d) - THE standard price
+  floor_price?: number // Avg of 4 lowest sales (30d) - THE standard price (cheapest variant)
+  floor_by_variant?: Record<string, number> // Floor price per variant {treatment/subtype: price}
   fair_market_price?: number // FMP calculated from formula
   vwap?: number // Volume-weighted average price
   // Calculated fields for display
@@ -755,9 +757,31 @@ function CardDetail() {
                         {/* Metrics Row - Left aligned below title */}
                         <div className="flex flex-wrap gap-8">
                             <div>
-                                <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">Floor Price</div>
+                                <div className="text-[10px] text-muted-foreground uppercase mb-1 tracking-wider">
+                                    Floor Price
+                                    {treatmentFilter !== 'all' && (
+                                        <span className="ml-2 text-brand-300">
+                                            ({treatmentFilter.startsWith('subtype:') ? treatmentFilter.replace('subtype:', '') : treatmentFilter})
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="text-4xl font-mono font-bold text-brand-300">
-                                    ${card.floor_price ? card.floor_price.toFixed(2) : (card.lowest_ask && card.lowest_ask > 0) ? card.lowest_ask.toFixed(2) : (card.latest_price?.toFixed(2) || '---')}
+                                    ${(() => {
+                                        // Get variant-specific price if filter is active
+                                        const variantKey = treatmentFilter === 'all' ? null :
+                                            treatmentFilter.startsWith('subtype:') ? treatmentFilter.replace('subtype:', '') : treatmentFilter
+                                        const variantFloor = variantKey ? card.floor_by_variant?.[variantKey] : null
+                                        const variantAsk = variantKey ? card.lowest_ask_by_variant?.[variantKey] : null
+
+                                        // Use variant-specific price if available
+                                        if (variantFloor) return variantFloor.toFixed(2)
+                                        if (variantAsk) return variantAsk.toFixed(2)
+
+                                        // Fall back to overall prices
+                                        if (card.floor_price) return card.floor_price.toFixed(2)
+                                        if (card.lowest_ask && card.lowest_ask > 0) return card.lowest_ask.toFixed(2)
+                                        return card.latest_price?.toFixed(2) || '---'
+                                    })()}
                                 </div>
                             </div>
                             <div className="border-l border-border pl-8">
@@ -799,7 +823,20 @@ function CardDetail() {
                         <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-brand-300"></div>
                             <span className="text-[10px] text-muted-foreground uppercase">Lowest Ask</span>
-                            <span className="font-mono font-bold">{(card.lowest_ask && card.lowest_ask > 0) ? `$${card.lowest_ask.toFixed(2)}` : "---"}</span>
+                            <span className="font-mono font-bold">
+                                {(() => {
+                                    // Get variant-specific ask if filter is active
+                                    const variantKey = treatmentFilter === 'all' ? null :
+                                        treatmentFilter.startsWith('subtype:') ? treatmentFilter.replace('subtype:', '') : treatmentFilter
+                                    const variantAsk = variantKey ? card.lowest_ask_by_variant?.[variantKey] : null
+
+                                    // Use variant-specific price if available
+                                    if (variantAsk) return `$${variantAsk.toFixed(2)}`
+
+                                    // Fall back to overall prices
+                                    return (card.lowest_ask && card.lowest_ask > 0) ? `$${card.lowest_ask.toFixed(2)}` : "---"
+                                })()}
+                            </span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
@@ -824,7 +861,7 @@ function CardDetail() {
                         </div>
                     </div>
 
-                    {/* Stacked Layout: Chart -> FMP -> Sales */}
+                    {/* Stacked Layout: Chart -> Variant Prices -> FMP -> Sales */}
                     <div className="space-y-4">
 
                         {/* Chart Section (Full Width) - MOVED TO TOP */}
@@ -1222,6 +1259,75 @@ function CardDetail() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Variant Price Table - Shows floor and ask per treatment/subtype */}
+                        {(card.floor_by_variant && Object.keys(card.floor_by_variant).length > 0) ||
+                         (card.lowest_ask_by_variant && Object.keys(card.lowest_ask_by_variant).length > 0) ? (
+                            <div className="border border-border rounded bg-card p-4">
+                                <h3 className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    Price by Variant
+                                    <Tooltip content="Floor = avg of 4 lowest sales. Ask = cheapest active listing.">
+                                        <span className="text-muted-foreground cursor-help">ⓘ</span>
+                                    </Tooltip>
+                                </h3>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                        <thead>
+                                            <tr className="border-b border-border">
+                                                <th className="text-left py-2 text-muted-foreground uppercase tracking-wider">Variant</th>
+                                                <th className="text-right py-2 text-muted-foreground uppercase tracking-wider">Floor</th>
+                                                <th className="text-right py-2 text-muted-foreground uppercase tracking-wider">Ask</th>
+                                                <th className="text-right py-2 text-muted-foreground uppercase tracking-wider">Δ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {/* Combine all variants from both floor and ask maps */}
+                                            {Array.from(new Set([
+                                                ...Object.keys(card.floor_by_variant || {}),
+                                                ...Object.keys(card.lowest_ask_by_variant || {})
+                                            ])).sort((a, b) => {
+                                                // Sort by floor price ascending, then by ask if no floor
+                                                const floorA = card.floor_by_variant?.[a] ?? Infinity
+                                                const floorB = card.floor_by_variant?.[b] ?? Infinity
+                                                if (floorA !== floorB) return floorA - floorB
+                                                const askA = card.lowest_ask_by_variant?.[a] ?? Infinity
+                                                const askB = card.lowest_ask_by_variant?.[b] ?? Infinity
+                                                return askA - askB
+                                            }).map((variant) => {
+                                                const floor = card.floor_by_variant?.[variant]
+                                                const ask = card.lowest_ask_by_variant?.[variant]
+                                                const delta = floor && ask ? ((ask - floor) / floor * 100) : null
+
+                                                return (
+                                                    <tr key={variant} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                                                        <td className="py-2">
+                                                            <TreatmentBadge treatment={variant} size="xs" />
+                                                        </td>
+                                                        <td className="text-right py-2 font-mono">
+                                                            {floor ? `$${floor.toFixed(2)}` : <span className="text-muted-foreground">---</span>}
+                                                        </td>
+                                                        <td className="text-right py-2 font-mono">
+                                                            {ask ? `$${ask.toFixed(2)}` : <span className="text-muted-foreground">---</span>}
+                                                        </td>
+                                                        <td className="text-right py-2 font-mono">
+                                                            {delta !== null ? (
+                                                                <span className={clsx(
+                                                                    delta > 0 ? 'text-red-400' : delta < 0 ? 'text-brand-300' : 'text-muted-foreground'
+                                                                )}>
+                                                                    {delta > 0 ? '+' : ''}{delta.toFixed(0)}%
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-muted-foreground">---</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : null}
 
                         {/* Fair Market Price by Treatment - Horizontal Text Row */}
                         {pricingData?.by_treatment && pricingData.by_treatment.length > 0 && (

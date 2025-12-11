@@ -63,10 +63,12 @@ class CardOut(CardBase):
     product_type: Optional[str] = None  # Single, Box, Pack, Bundle, Proof, Lot
 
     # === PRICES (clear hierarchy) ===
-    floor_price: Optional[float] = None  # Avg of 4 lowest sales - THE standard price
+    floor_price: Optional[float] = None  # Avg of 4 lowest sales - THE standard price (cheapest variant)
+    floor_by_variant: Optional[dict] = None  # Floor price per variant {variant_name: price}
     vwap: Optional[float] = None  # Volume Weighted Avg Price = SUM(price)/COUNT
     latest_price: Optional[float] = None  # Most recent sale price
-    lowest_ask: Optional[float] = None  # Cheapest active listing
+    lowest_ask: Optional[float] = None  # Cheapest active listing (cheapest variant)
+    lowest_ask_by_variant: Optional[dict] = None  # Lowest ask per variant {variant_name: price}
     max_price: Optional[float] = None  # Highest confirmed sale
     avg_price: Optional[float] = None  # Simple average (from snapshot)
     fair_market_price: Optional[float] = None  # FMP from formula (detail page only)

@@ -411,23 +411,49 @@ def read_market_listings(
     vwap_map = {}
 
     if card_ids:
-        # Batch calculate floor prices (avg of 4 lowest sales in 30d)
-        floor_cutoff = datetime.utcnow() - timedelta(days=30)
-        floor_query = text("""
-            SELECT card_id, AVG(price) as floor_price
+        # Batch calculate floor prices per variant (avg of 4 lowest sales)
+        # Uses treatment for singles, product_subtype for sealed
+        # NOTE: Floor price always uses 90-day lookback regardless of time_period filter
+        # This ensures we have enough sales data for meaningful floor calculations
+        floor_cutoff = datetime.utcnow() - timedelta(days=90)
+        floor_by_variant_query = text("""
+            SELECT card_id, variant, AVG(price) as floor_price
             FROM (
-                SELECT card_id, price,
-                       ROW_NUMBER() OVER (PARTITION BY card_id ORDER BY price ASC) as rn
+                SELECT card_id,
+                       CASE
+                           WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                           THEN product_subtype
+                           ELSE treatment
+                       END as variant,
+                       price,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY card_id,
+                               CASE
+                                   WHEN product_subtype IS NOT NULL AND product_subtype != ''
+                                   THEN product_subtype
+                                   ELSE treatment
+                               END
+                           ORDER BY price ASC
+                       ) as rn
                 FROM marketprice
                 WHERE card_id = ANY(:card_ids)
                   AND listing_type = 'sold'
                   AND COALESCE(sold_date, scraped_at) >= :cutoff
             ) ranked
             WHERE rn <= 4
-            GROUP BY card_id
+            GROUP BY card_id, variant
         """)
-        floor_results = session.execute(floor_query, {"card_ids": card_ids, "cutoff": floor_cutoff}).all()
-        floor_price_map = {row[0]: round(float(row[1]), 2) for row in floor_results}
+        floor_results = session.execute(floor_by_variant_query, {"card_ids": card_ids, "cutoff": floor_cutoff}).all()
+        # Build nested map: {card_id: {variant: price}}
+        floor_by_variant_map = {}
+        for row in floor_results:
+            card_id, variant, price = row[0], row[1], round(float(row[2]), 2)
+            if card_id not in floor_by_variant_map:
+                floor_by_variant_map[card_id] = {}
+            floor_by_variant_map[card_id][variant] = price
+        # Also build overall floor map (cheapest variant)
+        for card_id, variants in floor_by_variant_map.items():
+            floor_price_map[card_id] = min(variants.values())
 
         # Batch calculate VWAP (avg of all sold prices in 30d) as fallback
         vwap_query = text("""
@@ -444,6 +470,14 @@ def read_market_listings(
     # Format results
     listings = []
     for listing, card_name, card_slug, card_product_type in results:
+        # Get treatment-specific floor price if available
+        # Determine variant key: use product_subtype for sealed, treatment for singles
+        variant_key = listing.product_subtype if listing.product_subtype else listing.treatment
+        card_variants = floor_by_variant_map.get(listing.card_id, {})
+        variant_floor = card_variants.get(variant_key) if variant_key else None
+        # Fallback to overall floor price
+        floor_price = variant_floor or floor_price_map.get(listing.card_id)
+
         listings.append({
             "id": listing.id,
             "card_id": listing.card_id,
@@ -452,7 +486,7 @@ def read_market_listings(
             "product_type": card_product_type or "Single",
             "title": listing.title,
             "price": listing.price,
-            "floor_price": floor_price_map.get(listing.card_id),
+            "floor_price": floor_price,
             "vwap": vwap_map.get(listing.card_id),
             "platform": listing.platform,
             "treatment": listing.treatment,
