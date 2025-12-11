@@ -233,14 +233,15 @@ def read_cards(
             """)
 
             # Query for cheapest treatment per card (fallback)
-            # Calculates floor per treatment, then picks the cheapest treatment's floor
+            # Calculates floor per treatment AND product_subtype, then picks the cheapest floor
+            # This prevents mixing different product types (e.g., regular packs vs silver packs)
             cheapest_treatment_query = text(f"""
                 SELECT DISTINCT ON (card_id) card_id, floor_price
                 FROM (
-                    SELECT card_id, treatment, AVG(price) as floor_price
+                    SELECT card_id, treatment, product_subtype, AVG(price) as floor_price
                     FROM (
-                        SELECT card_id, treatment, price,
-                               ROW_NUMBER() OVER (PARTITION BY card_id, treatment ORDER BY price ASC) as rn
+                        SELECT card_id, treatment, product_subtype, price,
+                               ROW_NUMBER() OVER (PARTITION BY card_id, treatment, COALESCE(product_subtype, '') ORDER BY price ASC) as rn
                         FROM marketprice
                         WHERE card_id = ANY(:card_ids)
                           AND listing_type = 'sold'
@@ -248,7 +249,7 @@ def read_cards(
                           {platform_filter_sql}
                     ) ranked
                     WHERE rn <= 4
-                    GROUP BY card_id, treatment
+                    GROUP BY card_id, treatment, product_subtype
                 ) treatment_floors
                 ORDER BY card_id, floor_price ASC
             """)

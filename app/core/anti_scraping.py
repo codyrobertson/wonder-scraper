@@ -298,14 +298,18 @@ class AntiScrapingMiddleware(BaseHTTPMiddleware):
         if "wonderstracker.com" in origin or "wonderstracker.com" in referer:
             return await call_next(request)
 
-        # Modern browsers ALWAYS send Sec-Fetch-* headers - scrapers don't
-        # If ANY sec-fetch header is present, it's a real browser
-        sec_fetch_mode = request.headers.get("sec-fetch-mode", "")
-        sec_fetch_site = request.headers.get("sec-fetch-site", "")
-        sec_fetch_dest = request.headers.get("sec-fetch-dest", "")
-        if sec_fetch_mode or sec_fetch_site or sec_fetch_dest:
-            # Has sec-fetch headers = real browser, allow through
+        # Check x-forwarded-host (set by Vercel/proxy, harder to spoof)
+        forwarded_host = request.headers.get("x-forwarded-host", "")
+        if "wonderstracker.com" in forwarded_host:
             return await call_next(request)
+
+        # Check Sec-CH-UA headers (Client Hints) - browsers send these, harder to spoof correctly
+        # These require knowing exact Chrome/Firefox version strings
+        sec_ch_ua = request.headers.get("sec-ch-ua", "")
+        if sec_ch_ua and ('"Chromium"' in sec_ch_ua or '"Google Chrome"' in sec_ch_ua or '"Firefox"' in sec_ch_ua):
+            # Has valid-looking Client Hints, likely real browser
+            # Still apply rate limiting but don't block
+            pass  # Continue to rate limiting below
 
         user_agent = request.headers.get("user-agent", "")
 
