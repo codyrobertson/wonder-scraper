@@ -274,7 +274,7 @@ def parse_asset(data: Dict[str, Any], slug: str, bpx_price_usd: float) -> Blokpa
                 price_bpx=bpx_to_float(raw_price),
                 price_usd=bpx_to_usd(raw_price, bpx_price_usd),
                 quantity=listing.get("quantity", 1),
-                seller_address=listing.get("seller", {}).get("address", ""),
+                seller_address=listing.get("seller", {}).get("username", ""),
                 created_at=_parse_datetime(listing.get("created_at")),
             )
         )
@@ -476,7 +476,7 @@ async def scrape_all_listings(slug: str, max_pages: int = 200, concurrency: int 
                                             price_bpx=bpx_to_float(raw_price),
                                             price_usd=bpx_to_usd(raw_price, bpx_price),
                                             quantity=floor_listing.get("quantity", 1),
-                                            seller_address=floor_listing.get("seller", {}).get("address", "")
+                                            seller_address=floor_listing.get("seller", {}).get("username", "")
                                             if isinstance(floor_listing.get("seller"), dict)
                                             else "",
                                             created_at=_parse_datetime(floor_listing.get("created_at")),
@@ -1088,7 +1088,7 @@ async def scrape_preslab_sales(session: Session, max_pages: int = 10, save_to_db
                     external_id=listing_id,
                     platform="blokpax",
                     traits=traits if traits else None,
-                    seller_name=listing.get("seller", {}).get("address", "")[:20] if listing.get("seller") else None,
+                    seller_name=listing.get("seller", {}).get("username", "")[:20] if listing.get("seller") else None,
                     scraped_at=datetime.now(),
                 )
 

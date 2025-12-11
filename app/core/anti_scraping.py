@@ -291,27 +291,20 @@ class AntiScrapingMiddleware(BaseHTTPMiddleware):
         if auth_header.startswith("Bearer "):
             return await call_next(request)
 
-        # Skip for requests from our frontend (Vercel proxy)
+        # Skip for requests from our frontend
+        # Check origin/referer for our domain
         origin = request.headers.get("origin", "")
         referer = request.headers.get("referer", "")
-        host = request.headers.get("host", "")
         if "wonderstracker.com" in origin or "wonderstracker.com" in referer:
             return await call_next(request)
 
-        # Skip for same-origin requests (browser XHR to same domain may not send Origin)
-        # Check if Host matches and has browser-like Accept header
-        accept = request.headers.get("accept", "")
-        if "wonderstracker.com" in host and "text/html" in accept:
-            return await call_next(request)
-
-        # Also skip if it looks like a legit browser fetch (has sec-fetch headers)
+        # Modern browsers ALWAYS send Sec-Fetch-* headers - scrapers don't
+        # If ANY sec-fetch header is present, it's a real browser
         sec_fetch_mode = request.headers.get("sec-fetch-mode", "")
         sec_fetch_site = request.headers.get("sec-fetch-site", "")
-        if sec_fetch_mode in ("cors", "same-origin", "navigate") and sec_fetch_site in (
-            "same-origin",
-            "same-site",
-            "none",
-        ):
+        sec_fetch_dest = request.headers.get("sec-fetch-dest", "")
+        if sec_fetch_mode or sec_fetch_site or sec_fetch_dest:
+            # Has sec-fetch headers = real browser, allow through
             return await call_next(request)
 
         user_agent = request.headers.get("user-agent", "")

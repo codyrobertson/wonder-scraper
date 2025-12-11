@@ -4,12 +4,13 @@ import { analytics } from '~/services/analytics'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getSortedRowModel, SortingState, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { ArrowUpDown, Search, ArrowUp, ArrowDown, Calendar, TrendingUp, DollarSign, BarChart3, LayoutDashboard, ChevronLeft, ChevronRight, Plus, Package, Layers, Gem, Archive, Store, ShoppingCart } from 'lucide-react'
+import { ArrowUpDown, Search, ArrowUp, ArrowDown, Calendar, TrendingUp, DollarSign, BarChart3, LayoutDashboard, ChevronLeft, ChevronRight, Plus, Package, Layers, Gem, Archive, Store, ShoppingCart, ExternalLink, Info } from 'lucide-react'
 import clsx from 'clsx'
 import { Tooltip } from '../components/ui/tooltip'
 import { SimpleDropdown } from '../components/ui/dropdown'
 import { useTimePeriod } from '../context/TimePeriodContext'
 import { AddToPortfolioModal } from '../components/AddToPortfolioModal'
+import { TreatmentBadge } from '../components/TreatmentBadge'
 
 // Truncate treatment for display if too long
 function simplifyTreatmentForDisplay(treatment: string): string {
@@ -72,8 +73,11 @@ type Listing = {
   product_type: string
   title: string
   price: number
+  floor_price?: number // Avg of 4 lowest sales for this card
+  vwap?: number // Volume weighted avg price (fallback when floor_price unavailable)
   platform: string
   treatment?: string
+  traits?: Record<string, string> // NFT traits for OpenSea/Blokpax
   listing_type: 'active' | 'sold'
   condition?: string
   bid_count?: number
@@ -118,7 +122,10 @@ function Home() {
   const [listingPlatform, setListingPlatform] = useState<string>('all')
   const [listingProductType, setListingProductType] = useState<string>('all')
   const [listingTreatment, setListingTreatment] = useState<string>('all')
+  const [listingTimePeriod, setListingTimePeriod] = useState<string>('all')
   const [listingSearch, setListingSearch] = useState<string>('')
+  const [listingSortBy, setListingSortBy] = useState<string>('scraped_at')
+  const [listingSortOrder, setListingSortOrder] = useState<'asc' | 'desc'>('desc')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -176,14 +183,17 @@ function Home() {
 
   // Listings query for the Listings tab
   const { data: listingsData, isLoading: listingsLoading } = useQuery({
-    queryKey: ['listings', listingType, listingPlatform, listingProductType, listingTreatment, listingSearch],
+    queryKey: ['listings', listingType, listingPlatform, listingProductType, listingTreatment, listingTimePeriod, listingSearch, listingSortBy, listingSortOrder],
     queryFn: async () => {
       const params = new URLSearchParams()
       params.set('listing_type', listingType)
       params.set('limit', '200')
+      params.set('sort_by', listingSortBy)
+      params.set('sort_order', listingSortOrder)
       if (listingPlatform !== 'all') params.set('platform', listingPlatform)
       if (listingProductType !== 'all') params.set('product_type', listingProductType)
       if (listingTreatment !== 'all') params.set('treatment', listingTreatment)
+      if (listingTimePeriod !== 'all') params.set('time_period', listingTimePeriod)
       if (listingSearch) params.set('search', listingSearch)
       const data = await api.get(`market/listings?${params.toString()}`).json<ListingsResponse>()
       return data
@@ -193,9 +203,20 @@ function Home() {
     refetchOnWindowFocus: false,
   })
 
+  // Helper to toggle listing sort
+  const toggleListingSort = (column: string) => {
+    if (listingSortBy === column) {
+      setListingSortOrder(listingSortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setListingSortBy(column)
+      setListingSortOrder('desc')
+    }
+  }
+
   const columns = useMemo<ColumnDef<Card>[]>(() => [
     {
       accessorKey: 'name',
+      meta: { align: 'left' },
       header: ({ column }) => {
         return (
           <button
@@ -220,46 +241,57 @@ function Home() {
           : null
 
         return (
-          <div className="max-w-[180px] md:max-w-none">
-              <div className="flex items-center gap-1.5">
-                <Tooltip content={row.getValue('name')}>
-                    <span className="font-bold text-foreground truncate text-sm">{row.getValue('name')}</span>
-                </Tooltip>
-                {isSingle && rarity && (
-                  <Tooltip content={rarity}>
-                      <span className={clsx(
-                        "shrink-0 text-[8px] font-bold uppercase px-1 py-0.5 rounded",
-                        rarity === 'Mythic' ? 'text-amber-900 bg-amber-400' :
-                        rarity === 'Legendary' ? 'text-orange-900 bg-orange-400' :
-                        rarity === 'Epic' ? 'text-purple-900 bg-purple-400' :
-                        rarity === 'Rare' ? 'text-blue-900 bg-blue-400' :
-                        rarity === 'Uncommon' ? 'text-brand-800 bg-brand-300' :
-                        'text-zinc-900 bg-zinc-400'
-                      )}>
-                        {rarity}
-                      </span>
-                  </Tooltip>
-                )}
-                {!isSingle && IconComponent && (
-                  <Tooltip content={productType}>
-                      <span className="shrink-0 text-muted-foreground/40">
-                        <IconComponent className="w-3.5 h-3.5" />
-                      </span>
-                  </Tooltip>
-                )}
+          <div className="flex items-center gap-2">
+              <img
+                  src={`https://byhenwreijyrx2ww.public.blob.vercel-storage.com/cards/${row.original.id}-thumb.webp`}
+                  alt={row.getValue('name')}
+                  className="w-8 h-11 lg:w-10 lg:h-14 rounded object-cover bg-muted shrink-0"
+                  onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                  }}
+              />
+              <div className="max-w-[140px] md:max-w-none min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <Tooltip content={row.getValue('name')}>
+                        <span className="font-bold text-foreground truncate text-sm lg:text-base">{row.getValue('name')}</span>
+                    </Tooltip>
+                    {isSingle && rarity && (
+                      <Tooltip content={rarity}>
+                          <span className={clsx(
+                            "shrink-0 text-[8px] lg:text-[10px] font-bold uppercase px-1 py-0.5 rounded",
+                            rarity === 'Mythic' ? 'text-amber-900 bg-amber-400' :
+                            rarity === 'Legendary' ? 'text-orange-900 bg-orange-400' :
+                            rarity === 'Epic' ? 'text-purple-900 bg-purple-400' :
+                            rarity === 'Rare' ? 'text-blue-900 bg-blue-400' :
+                            rarity === 'Uncommon' ? 'text-brand-800 bg-brand-300' :
+                            'text-zinc-900 bg-zinc-400'
+                          )}>
+                            {rarity}
+                          </span>
+                      </Tooltip>
+                    )}
+                    {!isSingle && IconComponent && (
+                      <Tooltip content={productType}>
+                          <span className="shrink-0 text-muted-foreground/40">
+                            <IconComponent className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
+                          </span>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <div className="text-[10px] lg:text-xs text-muted-foreground/70 uppercase truncate">{row.original.set_name}</div>
               </div>
-              <div className="text-[10px] text-muted-foreground/70 uppercase truncate">{row.original.set_name}</div>
           </div>
         )
       },
     },
     {
       accessorKey: 'floor_price', // Floor price = avg of 4 lowest sales (30d)
+      meta: { align: 'center' },
       sortingFn: (a, b) => ((a.original.floor_price ?? 0) - (b.original.floor_price ?? 0)),
       header: ({ column }) => (
         <Tooltip content="Floor Price (avg of 4 lowest sales in 30d)">
             <button
-              className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+              className="inline-flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs"
               onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             >
               Floor
@@ -273,13 +305,13 @@ function Home() {
           const hasFloor = !!floorPrice && floorPrice > 0
           const delta = row.original.price_delta ?? row.original.price_delta_24h ?? 0
           return (
-            <div className="text-right flex items-center justify-end gap-2">
-                <span className="font-mono text-sm">
+            <div className="inline-flex items-center gap-2">
+                <span className="font-mono text-sm lg:text-base">
                     {hasFloor ? `$${floorPrice.toFixed(2)}` : '---'}
                 </span>
                 {hasFloor && delta !== 0 && (
                     <span className={clsx(
-                        "text-[10px] font-mono px-1 py-0.5 rounded",
+                        "text-[10px] lg:text-xs font-mono px-1 py-0.5 rounded",
                         delta > 0 ? "text-brand-300 bg-brand-300/10" :
                         "text-red-400 bg-red-500/10"
                     )}>
@@ -292,11 +324,12 @@ function Home() {
     },
     {
         accessorKey: 'volume',
+        meta: { align: 'center' },
         sortingFn: (a, b) => ((a.original.volume ?? 0) - (b.original.volume ?? 0)),
         header: ({ column }) => (
           <Tooltip content="Sales volume in selected time period">
               <button
-                className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs mx-auto"
                 onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
               >
                 Vol
@@ -329,11 +362,11 @@ function Home() {
             }
 
             return (
-                <div className="flex items-center justify-end gap-1 font-mono text-sm">
+                <div className="flex items-center justify-center gap-1 font-mono text-sm lg:text-base">
                     <span>{vol}</span>
                     {chevrons && (
                         <Tooltip content={chevronTooltip}>
-                            <span className={clsx("text-[10px]", colorClass)}>{chevrons}</span>
+                            <span className={clsx("text-[10px] lg:text-xs", colorClass)}>{chevrons}</span>
                         </Tooltip>
                     )}
                 </div>
@@ -342,11 +375,12 @@ function Home() {
     },
     {
         accessorKey: 'latest_price',
+        meta: { align: 'center' },
         sortingFn: (a, b) => ((a.original.latest_price ?? 0) - (b.original.latest_price ?? 0)),
         header: ({ column }) => (
           <Tooltip content="Most recent sale price and treatment">
               <button
-                className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                className="flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs mx-auto"
                 onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
               >
                 Last Sale
@@ -359,13 +393,13 @@ function Home() {
             const rawTreatment = row.original.last_treatment ?? row.original.last_sale_treatment ?? ''
             const treatment = simplifyTreatmentForDisplay(rawTreatment)
             return (
-                <div className="flex flex-col items-end">
-                    <span className="font-mono text-sm">{price > 0 ? `$${price.toFixed(2)}` : '---'}</span>
+                <div className="text-center">
+                    <div className="font-mono text-sm lg:text-base">{price > 0 ? `$${price.toFixed(2)}` : '---'}</div>
                     {treatment && (
                         <Tooltip content={rawTreatment}>
-                            <span className="text-[9px] text-muted-foreground max-w-[80px] truncate">
+                            <div className="text-[9px] lg:text-[11px] text-muted-foreground truncate">
                                 {treatment}
-                            </span>
+                            </div>
                         </Tooltip>
                     )}
                 </div>
@@ -374,11 +408,12 @@ function Home() {
     },
     {
         accessorKey: 'max_price',
+        meta: { align: 'center' },
         sortingFn: (a, b) => ((a.original.max_price ?? 0) - (b.original.max_price ?? 0)),
         header: ({ column }) => (
           <Tooltip content="Highest confirmed sale price">
               <button
-                className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs mx-auto"
                 onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
               >
                 High
@@ -388,16 +423,17 @@ function Home() {
         ),
         cell: ({ row }) => {
             const high = row.original.max_price || 0
-            return <div className="hidden md:block text-right font-mono text-sm text-brand-300">{high > 0 ? `$${high.toFixed(2)}` : '---'}</div>
+            return <div className="hidden md:block text-center font-mono text-sm lg:text-base text-brand-300">{high > 0 ? `$${high.toFixed(2)}` : '---'}</div>
         }
     },
     {
         accessorKey: 'lowest_ask',
+        meta: { align: 'center' },
         sortingFn: (a, b) => ((a.original.lowest_ask ?? 0) - (b.original.lowest_ask ?? 0)),
         header: ({ column }) => (
           <Tooltip content="Lowest active asking price">
               <button
-                className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                className="hidden md:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs mx-auto"
                 onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
               >
                 Ask
@@ -407,16 +443,17 @@ function Home() {
         ),
         cell: ({ row }) => {
             const ask = row.original.lowest_ask || 0
-            return <div className="hidden md:block text-right font-mono text-sm">{ask > 0 ? `$${ask.toFixed(2)}` : '---'}</div>
+            return <div className="hidden md:block text-center font-mono text-sm lg:text-base">{ask > 0 ? `$${ask.toFixed(2)}` : '---'}</div>
         }
     },
     {
         accessorKey: 'inventory',
+        meta: { align: 'center' },
         sortingFn: (a, b) => ((a.original.inventory ?? 0) - (b.original.inventory ?? 0)),
         header: ({ column }) => (
           <Tooltip content="Active listings count and estimated days to sell">
               <button
-                className="hidden lg:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs ml-auto"
+                className="hidden lg:flex items-center gap-1 hover:text-primary uppercase tracking-wider text-xs mx-auto"
                 onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
               >
                 Listings
@@ -439,10 +476,10 @@ function Home() {
                 : 'text-muted-foreground'
                 : 'text-muted-foreground'
             return (
-                <div className="hidden lg:block text-right">
-                    <div className="font-mono text-sm">{inv}</div>
+                <div className="hidden lg:block text-center">
+                    <div className="font-mono text-sm lg:text-base">{inv}</div>
                     <Tooltip content="Estimated days to sell current inventory at current sales velocity">
-                        <div className={clsx("text-[9px]", daysClass)}>{daysDisplay} sell</div>
+                        <div className={clsx("text-[9px] lg:text-[11px]", daysClass)}>{daysDisplay} sell</div>
                     </Tooltip>
                 </div>
             )
@@ -450,6 +487,7 @@ function Home() {
     },
     {
         id: 'track',
+        meta: { align: 'center' },
         header: () => <div className="text-xs uppercase tracking-wider text-muted-foreground text-center">Track</div>,
         cell: ({ row }) => {
             return (
@@ -746,6 +784,23 @@ function Home() {
                                   className="flex-1 sm:w-[130px]"
                                   triggerClassName="uppercase font-mono text-xs"
                               />
+
+                              <SimpleDropdown
+                                  value={listingTimePeriod}
+                                  onChange={(value) => {
+                                      setListingTimePeriod(value)
+                                      analytics.trackFilterApplied('listing_time_period', value)
+                                  }}
+                                  options={[
+                                      { value: 'all', label: 'All Time' },
+                                      { value: '7d', label: '7 Days' },
+                                      { value: '30d', label: '30 Days' },
+                                      { value: '90d', label: '90 Days' },
+                                  ]}
+                                  size="sm"
+                                  className="flex-1 sm:w-[100px]"
+                                  triggerClassName="uppercase font-mono text-xs"
+                              />
                           </div>
                       </div>
                     )}
@@ -768,16 +823,23 @@ function Home() {
                       </div>
                   ) : (
                       <>
-                          <div className="overflow-auto flex-1">
+                          <div className="overflow-auto flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                               <table className="w-full text-sm text-left">
                                   <thead className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border sticky top-0 z-10">
                                       {table.getHeaderGroups().map(headerGroup => (
                                           <tr key={headerGroup.id}>
-                                              {headerGroup.headers.map(header => (
-                                              <th key={header.id} className="px-2 py-1.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30">
+                                              {headerGroup.headers.map(header => {
+                                              const align = (header.column.columnDef.meta as { align?: string })?.align || 'left'
+                                              return (
+                                              <th key={header.id} className={clsx(
+                                                  "px-2 py-1.5 font-medium whitespace-nowrap hover:bg-muted/50 transition-colors bg-muted/30",
+                                                  align === 'center' && 'text-center',
+                                                  align === 'right' && 'text-right'
+                                              )}>
                                                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                                   </th>
-                                              ))}
+                                              )
+                                              })}
                                           </tr>
                                       ))}
                                   </thead>
@@ -789,11 +851,18 @@ function Home() {
                                                   className="hover:bg-muted/30 transition-colors cursor-pointer group"
                                                   onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: row.original.slug || String(row.original.id) } })}
                                               >
-                                                  {row.getVisibleCells().map(cell => (
-                                                  <td key={cell.id} className="px-2 py-1.5 whitespace-nowrap">
+                                                  {row.getVisibleCells().map(cell => {
+                                                      const align = (cell.column.columnDef.meta as { align?: string })?.align || 'left'
+                                                      return (
+                                                  <td key={cell.id} className={clsx(
+                                                      "px-2 py-1.5 whitespace-nowrap",
+                                                      align === 'center' && 'text-center',
+                                                      align === 'right' && 'text-right'
+                                                  )}>
                                                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                                       </td>
-                                                  ))}
+                                                      )
+                                                  })}
                                               </tr>
                                           ))
                                       ) : (
@@ -842,17 +911,54 @@ function Home() {
                       </div>
                   ) : (
                       <>
-                          <div className="overflow-auto flex-1">
+                          <div className="overflow-auto flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                               <table className="w-full text-sm text-left">
                                   <thead className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border sticky top-0 z-10">
                                       <tr>
                                           <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30">Card</th>
-                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30">Listing</th>
-                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 text-right">Price</th>
-                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 hidden md:table-cell">Platform</th>
-                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 hidden lg:table-cell">Treatment</th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 text-right">
+                                              <button
+                                                  className="flex items-center gap-1 hover:text-primary ml-auto"
+                                                  onClick={() => toggleListingSort('price')}
+                                              >
+                                                  Price
+                                                  {listingSortBy === 'price' ? (
+                                                      listingSortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                                                  ) : (
+                                                      <ArrowUpDown className="h-3 w-3 opacity-50" />
+                                                  )}
+                                              </button>
+                                          </th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 text-center hidden md:table-cell">
+                                              <button
+                                                  className="flex items-center gap-1 hover:text-primary mx-auto"
+                                                  onClick={() => toggleListingSort('floor_price')}
+                                              >
+                                                  Floor
+                                                  {listingSortBy === 'floor_price' ? (
+                                                      listingSortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                                                  ) : (
+                                                      <ArrowUpDown className="h-3 w-3 opacity-50" />
+                                                  )}
+                                              </button>
+                                          </th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 text-center hidden md:table-cell">Treatment</th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 hidden lg:table-cell">Listing</th>
                                           <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 hidden lg:table-cell">Seller</th>
-                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 text-center">Link</th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 hidden xl:table-cell">
+                                              <button
+                                                  className="flex items-center gap-1 hover:text-primary"
+                                                  onClick={() => toggleListingSort('scraped_at')}
+                                              >
+                                                  Listed
+                                                  {listingSortBy === 'scraped_at' ? (
+                                                      listingSortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                                                  ) : (
+                                                      <ArrowUpDown className="h-3 w-3 opacity-50" />
+                                                  )}
+                                              </button>
+                                          </th>
+                                          <th className="px-2 py-1.5 font-medium whitespace-nowrap bg-muted/30 text-center">Links</th>
                                       </tr>
                                   </thead>
                                   <tbody className="divide-y divide-border/50">
@@ -860,76 +966,167 @@ function Home() {
                                           listingsData.items.map(listing => (
                                               <tr
                                                   key={listing.id}
-                                                  className="hover:bg-muted/30 transition-colors"
+                                                  className="hover:bg-muted/30 transition-colors cursor-pointer"
+                                                  onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: listing.card_slug || String(listing.card_id) } })}
                                               >
+                                                  {/* Card with thumbnail */}
                                                   <td className="px-2 py-1.5">
-                                                      <button
-                                                          onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: listing.card_slug || String(listing.card_id) } })}
-                                                          className="text-left hover:text-primary transition-colors"
-                                                      >
-                                                          <div className="font-bold text-sm truncate max-w-[150px]">{listing.card_name}</div>
-                                                          <div className="text-[10px] text-muted-foreground uppercase">{listing.product_type}</div>
-                                                      </button>
+                                                      <div className="flex items-center gap-2">
+                                                          <img
+                                                              src={`https://byhenwreijyrx2ww.public.blob.vercel-storage.com/cards/${listing.card_id}-thumb.webp`}
+                                                              alt={listing.card_name}
+                                                              className="w-8 h-11 lg:w-10 lg:h-14 rounded object-cover bg-muted shrink-0"
+                                                              onError={(e) => {
+                                                                  e.currentTarget.style.display = 'none'
+                                                              }}
+                                                          />
+                                                          <div className="min-w-0">
+                                                              <div className="font-bold text-sm lg:text-base truncate max-w-[120px] md:max-w-none">{listing.card_name}</div>
+                                                              <div className="flex items-center gap-1.5">
+                                                                  <span className="text-[10px] lg:text-xs text-muted-foreground uppercase">{listing.product_type}</span>
+                                                                  <span className={clsx(
+                                                                      "text-[9px] lg:text-[10px] font-bold uppercase px-1 py-0.5 rounded",
+                                                                      listing.platform === 'ebay' ? 'bg-blue-500/20 text-blue-400' :
+                                                                      listing.platform === 'blokpax' ? 'bg-purple-500/20 text-purple-400' :
+                                                                      listing.platform === 'opensea' ? 'bg-cyan-500/20 text-cyan-400' :
+                                                                      'bg-muted text-muted-foreground'
+                                                                  )}>
+                                                                      {listing.platform}
+                                                                  </span>
+                                                              </div>
+                                                          </div>
+                                                      </div>
                                                   </td>
-                                                  <td className="px-2 py-1.5">
+                                                  {/* Price */}
+                                                  <td className="px-2 py-1.5 text-right">
+                                                      {(() => {
+                                                          const refPrice = listing.floor_price || listing.vwap
+                                                          const priceDelta = refPrice && refPrice > 0
+                                                            ? ((listing.price - refPrice) / refPrice) * 100
+                                                            : null
+                                                          return (
+                                                            <>
+                                                              <div className="font-mono text-sm lg:text-base font-bold">${listing.price.toFixed(2)}</div>
+                                                              {priceDelta !== null && Math.abs(priceDelta) >= 1 && (
+                                                                <div className={clsx(
+                                                                  "text-[10px] lg:text-xs font-mono",
+                                                                  priceDelta < -5 ? "text-brand-300" :
+                                                                  priceDelta > 20 ? "text-red-400" :
+                                                                  "text-muted-foreground"
+                                                                )}>
+                                                                  {priceDelta > 0 ? '+' : ''}{priceDelta.toFixed(0)}%
+                                                                </div>
+                                                              )}
+                                                              {listing.shipping_cost !== null && listing.shipping_cost !== undefined && (
+                                                                <div className="text-[10px] lg:text-xs text-muted-foreground">
+                                                                    {listing.shipping_cost === 0 ? 'Free' : `+$${listing.shipping_cost.toFixed(0)}`}
+                                                                </div>
+                                                              )}
+                                                            </>
+                                                          )
+                                                      })()}
+                                                  </td>
+                                                  {/* Floor price (with VWAP fallback) */}
+                                                  <td className="px-2 py-1.5 text-center hidden md:table-cell">
+                                                      {listing.floor_price ? (
+                                                        <div className="font-mono text-sm lg:text-base text-muted-foreground">
+                                                          ${listing.floor_price.toFixed(2)}
+                                                        </div>
+                                                      ) : listing.vwap ? (
+                                                        <Tooltip content="VWAP - avg of all recent sales (floor unavailable)">
+                                                          <div className="font-mono text-sm lg:text-base text-muted-foreground/70 italic">
+                                                            ~${listing.vwap.toFixed(2)}
+                                                          </div>
+                                                        </Tooltip>
+                                                      ) : (
+                                                        <div className="font-mono text-sm lg:text-base text-muted-foreground">---</div>
+                                                      )}
+                                                  </td>
+                                                  {/* Treatment / Traits / Subtype */}
+                                                  <td className="px-2 py-1.5 text-center hidden md:table-cell">
+                                                      {listing.treatment ? (
+                                                        <TreatmentBadge treatment={listing.treatment} size="xs" />
+                                                      ) : (listing.platform === 'opensea' || listing.platform === 'blokpax') && listing.traits ? (
+                                                        <Tooltip content={Object.entries(listing.traits).map(([k, v]) => `${k}: ${v}`).join(', ')}>
+                                                          <div className="flex flex-wrap gap-0.5 max-w-[120px]">
+                                                            {Object.entries(listing.traits).slice(0, 2).map(([key, val]) => (
+                                                              <span key={key} className="text-[9px] bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded truncate max-w-[60px]">
+                                                                {String(val)}
+                                                              </span>
+                                                            ))}
+                                                            {Object.keys(listing.traits).length > 2 && (
+                                                              <span className="text-[9px] text-muted-foreground">+{Object.keys(listing.traits).length - 2}</span>
+                                                            )}
+                                                          </div>
+                                                        </Tooltip>
+                                                      ) : (
+                                                        <span className="text-xs text-muted-foreground">-</span>
+                                                      )}
+                                                  </td>
+                                                  {/* Listing title */}
+                                                  <td className="px-2 py-1.5 hidden lg:table-cell">
                                                       <Tooltip content={listing.title}>
-                                                          <div className="text-xs truncate max-w-[200px]">{listing.title}</div>
+                                                          <div className="text-xs lg:text-sm truncate max-w-[180px] lg:max-w-[220px]">{listing.title}</div>
                                                       </Tooltip>
                                                       {listing.listing_type === 'sold' && listing.sold_date && (
-                                                          <div className="text-[10px] text-muted-foreground">
+                                                          <div className="text-[10px] lg:text-xs text-brand-300">
                                                               Sold {new Date(listing.sold_date).toLocaleDateString()}
                                                           </div>
                                                       )}
                                                   </td>
-                                                  <td className="px-2 py-1.5 text-right">
-                                                      <div className="font-mono text-sm font-bold">${listing.price.toFixed(2)}</div>
-                                                      {listing.shipping_cost !== null && listing.shipping_cost !== undefined && (
-                                                          <div className="text-[10px] text-muted-foreground">
-                                                              {listing.shipping_cost === 0 ? 'Free Ship' : `+$${listing.shipping_cost.toFixed(2)}`}
-                                                          </div>
-                                                      )}
-                                                  </td>
-                                                  <td className="px-2 py-1.5 hidden md:table-cell">
-                                                      <span className={clsx(
-                                                          "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded",
-                                                          listing.platform === 'ebay' ? 'bg-blue-500/20 text-blue-400' :
-                                                          listing.platform === 'blokpax' ? 'bg-purple-500/20 text-purple-400' :
-                                                          listing.platform === 'opensea' ? 'bg-cyan-500/20 text-cyan-400' :
-                                                          'bg-muted text-muted-foreground'
-                                                      )}>
-                                                          {listing.platform}
-                                                      </span>
-                                                  </td>
+                                                  {/* Seller */}
                                                   <td className="px-2 py-1.5 hidden lg:table-cell">
-                                                      <div className="text-xs truncate max-w-[100px]">{listing.treatment || '-'}</div>
-                                                  </td>
-                                                  <td className="px-2 py-1.5 hidden lg:table-cell">
-                                                      <div className="text-xs truncate max-w-[100px]">{listing.seller_name || '-'}</div>
+                                                      <div className="text-xs lg:text-sm truncate max-w-[100px] lg:max-w-[120px]">
+                                                          {listing.seller_name || (listing.seller_feedback_percent ? '' : '-')}
+                                                      </div>
                                                       {listing.seller_feedback_percent && (
-                                                          <div className="text-[10px] text-muted-foreground">{listing.seller_feedback_percent}%</div>
+                                                          <div className="text-[10px] lg:text-xs text-muted-foreground">{listing.seller_feedback_percent}%</div>
                                                       )}
                                                   </td>
-                                                  <td className="px-2 py-1.5 text-center">
-                                                      {listing.url && (
-                                                          <a
-                                                              href={listing.url}
-                                                              target="_blank"
-                                                              rel="noopener noreferrer"
-                                                              onClick={(e) => {
-                                                                  e.stopPropagation()
-                                                                  analytics.trackExternalLinkClick(listing.platform, listing.card_id, listing.title)
-                                                              }}
-                                                              className="text-xs text-primary hover:underline"
-                                                          >
-                                                              View →
-                                                          </a>
-                                                      )}
+                                                  {/* Listed Date */}
+                                                  <td className="px-2 py-1.5 hidden xl:table-cell">
+                                                      <div className="text-xs lg:text-sm text-muted-foreground">
+                                                          {listing.listed_at
+                                                            ? new Date(listing.listed_at).toLocaleDateString()
+                                                            : listing.scraped_at
+                                                            ? new Date(listing.scraped_at).toLocaleDateString()
+                                                            : '-'
+                                                          }
+                                                      </div>
+                                                  </td>
+                                                  {/* Link buttons */}
+                                                  <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                                                      <div className="flex items-center justify-center gap-1">
+                                                          {listing.url && (
+                                                              <Tooltip content={`View on ${listing.platform}`}>
+                                                                  <a
+                                                                      href={listing.url}
+                                                                      target="_blank"
+                                                                      rel="noopener noreferrer"
+                                                                      onClick={() => {
+                                                                          analytics.trackExternalLinkClick(listing.platform, listing.card_id, listing.title)
+                                                                      }}
+                                                                      className="p-1.5 rounded border border-border hover:bg-muted/50 hover:text-primary transition-colors"
+                                                                  >
+                                                                      <ExternalLink className="w-3.5 h-3.5" />
+                                                                  </a>
+                                                              </Tooltip>
+                                                          )}
+                                                          <Tooltip content="Card details">
+                                                              <button
+                                                                  onClick={() => navigate({ to: '/cards/$cardId', params: { cardId: listing.card_slug || String(listing.card_id) } })}
+                                                                  className="p-1.5 rounded border border-border hover:bg-muted/50 hover:text-primary transition-colors"
+                                                              >
+                                                                  <Info className="w-3.5 h-3.5" />
+                                                              </button>
+                                                          </Tooltip>
+                                                      </div>
                                                   </td>
                                               </tr>
                                           ))
                                       ) : (
                                           <tr>
-                                              <td colSpan={7} className="h-32 text-center text-muted-foreground text-xs uppercase">
+                                              <td colSpan={8} className="h-32 text-center text-muted-foreground text-xs uppercase">
                                                   No listings found.
                                               </td>
                                           </tr>

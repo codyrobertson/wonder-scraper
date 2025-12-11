@@ -19,7 +19,12 @@ from app.scraper.blokpax import (
     scrape_storefront_floor,
     scrape_recent_sales,
     scrape_preslab_sales,
+    scrape_preslab_listings,
     is_wotf_asset,
+)
+from app.scraper.opensea import (
+    OPENSEA_WOTF_COLLECTIONS,
+    scrape_opensea_listings_to_db,
 )
 from app.discord_bot.logger import log_scrape_start, log_scrape_complete, log_scrape_error, log_market_insights
 from datetime import datetime, timedelta
@@ -260,21 +265,67 @@ async def job_update_blokpax_data():
             print(f"[Blokpax] Error scraping preslab sales: {e}")
             errors += 1
 
+        # Scrape preslab active listings and sync to marketprice
+        total_listings = 0
+        try:
+            with Session(engine) as session:
+                processed, matched, saved = await scrape_preslab_listings(session, save_to_db=True)
+                total_listings = saved
+                print(f"[Blokpax] Preslab listings: {saved} active listings synced to marketprice")
+        except Exception as e:
+            print(f"[Blokpax] Error scraping preslab listings: {e}")
+            errors += 1
+
     except Exception as e:
         print(f"[Blokpax] Fatal error: {e}")
         log_scrape_error("Blokpax Scheduled", str(e))
         errors += 1
 
+    # ===== OpenSea Active Listings =====
+    opensea_listings = 0
+    try:
+        print(f"[{datetime.utcnow()}] Scraping OpenSea Active Listings...")
+        with Session(engine) as session:
+            for collection_slug, card_name in OPENSEA_WOTF_COLLECTIONS.items():
+                try:
+                    # Find the card in DB
+                    card = session.exec(
+                        select(Card).where(Card.name == card_name)
+                    ).first()
+
+                    if not card:
+                        print(f"[OpenSea] Card '{card_name}' not found in DB, skipping")
+                        continue
+
+                    scraped, saved = await scrape_opensea_listings_to_db(
+                        session, collection_slug, card.id, card_name
+                    )
+                    opensea_listings += saved
+
+                except Exception as e:
+                    print(f"[OpenSea] Error scraping {collection_slug}: {e}")
+                    errors += 1
+                    continue
+
+        print(f"[OpenSea] Active listings: {opensea_listings} synced to marketprice")
+
+    except Exception as e:
+        print(f"[OpenSea] Fatal error: {e}")
+        log_scrape_error("OpenSea Scheduled", str(e))
+        errors += 1
+
+    total_listings += opensea_listings
+
     duration = time.time() - start_time
     log_scrape_complete(
-        cards_processed=len(WOTF_STOREFRONTS),
-        new_listings=0,
+        cards_processed=len(WOTF_STOREFRONTS) + len(OPENSEA_WOTF_COLLECTIONS),
+        new_listings=total_listings,
         new_sales=total_sales,
         duration_seconds=duration,
         errors=errors,
     )
 
-    print(f"[{datetime.utcnow()}] Blokpax Update Complete. Duration: {duration:.1f}s")
+    print(f"[{datetime.utcnow()}] NFT Update Complete. Duration: {duration:.1f}s, Listings: {total_listings}, Sales: {total_sales}")
 
 
 async def job_send_daily_digests():

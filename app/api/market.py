@@ -316,9 +316,10 @@ def read_market_activity(
 def read_market_listings(
     session: Session = Depends(get_session),
     listing_type: Optional[str] = Query(default="active", description="Filter by listing type: active, sold, or all"),
-    platform: Optional[str] = Query(default=None, description="Filter by platform: ebay, blokpax"),
+    platform: Optional[str] = Query(default=None, description="Filter by platform: ebay, blokpax, opensea"),
     product_type: Optional[str] = Query(default=None, description="Filter by product type: Single, Box, Pack"),
     treatment: Optional[str] = Query(default=None, description="Filter by treatment: Classic Paper, Foil, etc."),
+    time_period: Optional[str] = Query(default=None, description="Filter by time period: 7d, 30d, 90d, all"),
     min_price: Optional[float] = Query(default=None, ge=0, description="Minimum price filter"),
     max_price: Optional[float] = Query(default=None, description="Maximum price filter"),
     search: Optional[str] = Query(default=None, description="Search by listing title or card name"),
@@ -329,10 +330,20 @@ def read_market_listings(
 ) -> Any:
     """
     Get marketplace listings across all cards with comprehensive filtering.
-    Returns individual listings from MarketPrice table with card details.
+    Returns individual listings from MarketPrice table with card details including floor price.
     """
-    from sqlalchemy import func, or_
+    from sqlalchemy import func, or_, text
     from app.models.market import MarketPrice
+
+    # Calculate time cutoff for time_period filter
+    time_cutoffs = {
+        "7d": timedelta(days=7),
+        "30d": timedelta(days=30),
+        "90d": timedelta(days=90),
+        "all": None,
+    }
+    cutoff_delta = time_cutoffs.get(time_period) if time_period else None
+    cutoff_time = datetime.utcnow() - cutoff_delta if cutoff_delta else None
 
     # Build base query with join to Card for product info
     query = select(MarketPrice, Card.name, Card.slug, Card.product_type).join(Card, MarketPrice.card_id == Card.id)
@@ -352,6 +363,10 @@ def read_market_listings(
     # Apply treatment filter
     if treatment:
         query = query.where(MarketPrice.treatment.ilike(f"%{treatment}%"))
+
+    # Apply time period filter
+    if cutoff_time:
+        query = query.where(func.coalesce(MarketPrice.sold_date, MarketPrice.scraped_at) >= cutoff_time)
 
     # Apply price range filters
     if min_price is not None:
@@ -390,6 +405,42 @@ def read_market_listings(
 
     results = session.exec(query).all()
 
+    # Get unique card IDs to batch fetch floor prices and VWAP
+    card_ids = list(set(listing.card_id for listing, _, _, _ in results))
+    floor_price_map = {}
+    vwap_map = {}
+
+    if card_ids:
+        # Batch calculate floor prices (avg of 4 lowest sales in 30d)
+        floor_cutoff = datetime.utcnow() - timedelta(days=30)
+        floor_query = text("""
+            SELECT card_id, AVG(price) as floor_price
+            FROM (
+                SELECT card_id, price,
+                       ROW_NUMBER() OVER (PARTITION BY card_id ORDER BY price ASC) as rn
+                FROM marketprice
+                WHERE card_id = ANY(:card_ids)
+                  AND listing_type = 'sold'
+                  AND COALESCE(sold_date, scraped_at) >= :cutoff
+            ) ranked
+            WHERE rn <= 4
+            GROUP BY card_id
+        """)
+        floor_results = session.execute(floor_query, {"card_ids": card_ids, "cutoff": floor_cutoff}).all()
+        floor_price_map = {row[0]: round(float(row[1]), 2) for row in floor_results}
+
+        # Batch calculate VWAP (avg of all sold prices in 30d) as fallback
+        vwap_query = text("""
+            SELECT card_id, AVG(price) as vwap
+            FROM marketprice
+            WHERE card_id = ANY(:card_ids)
+              AND listing_type = 'sold'
+              AND COALESCE(sold_date, scraped_at) >= :cutoff
+            GROUP BY card_id
+        """)
+        vwap_results = session.execute(vwap_query, {"card_ids": card_ids, "cutoff": floor_cutoff}).all()
+        vwap_map = {row[0]: round(float(row[1]), 2) for row in vwap_results}
+
     # Format results
     listings = []
     for listing, card_name, card_slug, card_product_type in results:
@@ -401,6 +452,8 @@ def read_market_listings(
             "product_type": card_product_type or "Single",
             "title": listing.title,
             "price": listing.price,
+            "floor_price": floor_price_map.get(listing.card_id),
+            "vwap": vwap_map.get(listing.card_id),
             "platform": listing.platform,
             "treatment": listing.treatment,
             "listing_type": listing.listing_type,
@@ -411,6 +464,7 @@ def read_market_listings(
             "seller_feedback_percent": listing.seller_feedback_percent,
             "shipping_cost": listing.shipping_cost,
             "grading": listing.grading,
+            "traits": listing.traits,
             "url": listing.url,
             "image_url": listing.image_url,
             "sold_date": listing.sold_date.isoformat() if listing.sold_date else None,

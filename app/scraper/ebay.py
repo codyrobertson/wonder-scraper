@@ -790,8 +790,16 @@ def _is_valid_match(title: str, card_name: str, target_rarity: str = "") -> bool
 
     # FIRST: Check for positive WOTF identifiers
     # If present, we trust this is a WOTF listing and skip most blocklist checks
-    wonders_identifiers = ["wonders of the first", "wotf"]
+    wonders_identifiers = ["wonders of the first", "wotf", "existence tcg", "existence 1st edition"]
     has_wonders_identifier = any(ident in title_lower for ident in wonders_identifiers)
+
+    # CRITICAL: For generic card names (Lot, Treasure Map, The Prisoner, etc.),
+    # REQUIRE a WOTF identifier to avoid matching other TCGs
+    generic_card_names = ["lot", "the prisoner", "treasure map", "catch", "the awakening",
+                         "eye of the maelstrom", "dragon's gold", "2-player starter"]
+    is_generic_name = any(generic in name_lower for generic in generic_card_names)
+    if is_generic_name and not has_wonders_identifier:
+        return False
 
     # CRITICAL: Reject non-Wonders TCG products that might match on keywords
     # e.g., "The Prisoner" should NOT match "Harry Potter Prisoner of Azkaban"
@@ -1047,20 +1055,69 @@ def _extract_bid_count(item) -> int:
 def _extract_seller_info(item) -> Tuple[Optional[str], Optional[int], Optional[float]]:
     """
     Extracts seller name and feedback info from an item element.
+    Supports both old .s-item format and new .s-card format.
     Returns: (seller_name, feedback_score, feedback_percent)
     """
     seller_name = None
     feedback_score = None
     feedback_percent = None
 
-    # Best approach: extract from seller link URL which has clean username
-    seller_link = item.select_one("a[href*='/usr/']")
-    if seller_link:
-        href = seller_link.get("href", "")
-        # URL format: https://www.ebay.com/usr/seller_name or /usr/seller_name
-        match = re.search(r"/usr/([^/?]+)", href)
-        if match:
-            seller_name = match.group(1).strip()
+    # ========== NEW s-card FORMAT (2024+) ==========
+    # Format varies:
+    #   <div class="su-card-container__attributes__secondary">
+    #     <span>seller_name </span>
+    #     <span>100% positive (3.8K)</span>
+    #   </div>
+    # OR combined in one span:
+    #   <span>seller_name  100% positive (1K)</span>
+    secondary_attrs = item.select_one(".su-card-container__attributes__secondary")
+    if secondary_attrs:
+        spans = secondary_attrs.select("span.su-styled-text")
+        for i, span in enumerate(spans):
+            text = span.get_text(strip=True)
+
+            # Look for feedback pattern: "100% positive (3.8K)" or "99.5% positive (1234)"
+            feedback_match = re.search(r"([\d.]+)%\s*positive\s*\(([\d.]+)K?\)", text, re.IGNORECASE)
+            if feedback_match:
+                feedback_percent = float(feedback_match.group(1))
+                score_str = feedback_match.group(2)
+                if "K" in text.upper():
+                    feedback_score = int(float(score_str) * 1000)
+                else:
+                    feedback_score = int(float(score_str))
+
+                # CRITICAL: Check if seller name is BEFORE the feedback in same span
+                # Format: "seller_name  100% positive (1K)"
+                pre_feedback = text[: feedback_match.start()].strip()
+                if pre_feedback and re.match(r"^[a-zA-Z0-9_\-\.]+$", pre_feedback):
+                    seller_name = pre_feedback
+
+            # Separate span that looks like a username (not customs/shipping info)
+            elif text and not text.startswith(("Customs", "Located", "Free", "+$", "From")):
+                potential_name = text.strip()
+                if re.match(r"^[a-zA-Z0-9_\-\.]+$", potential_name):
+                    seller_name = potential_name
+
+        # If we found feedback but not seller name, check all spans for username
+        if feedback_score and not seller_name:
+            for span in spans:
+                text = span.get_text(strip=True)
+                if text and not re.search(r"[\d.]+%\s*positive", text, re.IGNORECASE):
+                    potential_name = text.strip()
+                    if re.match(r"^[a-zA-Z0-9_\-\.]+$", potential_name):
+                        seller_name = potential_name
+                        break
+
+    # ========== OLD s-item FORMAT ==========
+    if not seller_name:
+        # Best approach: extract from seller link URL which has clean username
+        seller_link = item.select_one("a[href*='/usr/']")
+        if seller_link:
+            href = seller_link.get("href", "")
+            # URL format: https://www.ebay.com/usr/seller_name or /usr/seller_name
+            match = re.search(r"/usr/([^/?]+)", href)
+            if match:
+                seller_name = match.group(1).strip()
 
     # Alternative: look for seller link text (but clean it up)
     if not seller_name:
@@ -1070,7 +1127,7 @@ def _extract_seller_info(item) -> Tuple[Optional[str], Optional[int], Optional[f
             # Take just the first word/username before any spaces or special chars
             seller_name = text.split()[0] if text else None
 
-    # Try to find seller info element
+    # Try to find seller info element (old format)
     if not seller_name:
         seller_elem = item.select_one(".s-item__seller-info, .s-item__seller-info-text")
         if seller_elem:
@@ -1103,7 +1160,7 @@ def _extract_seller_info(item) -> Tuple[Optional[str], Optional[int], Optional[f
                     if match:
                         seller_name = match.group(1).strip()
 
-    # Try to find feedback separately if not found
+    # Try to find feedback separately if not found (old format)
     if seller_name and not feedback_score:
         feedback_elem = item.select_one(".s-item__seller-info .s-item__feedback, [class*='feedback']")
         if feedback_elem:
